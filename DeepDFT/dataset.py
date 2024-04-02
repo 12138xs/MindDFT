@@ -21,8 +21,24 @@ from ase.calculators.vasp import VaspChargeDensity
 import asap3
 import mindspore as ms
 
+
 from layer import pad_and_stack
 
+# 这个函数也是用来调试的,用来查看数据结构
+def print_structure(var, indent=0):  
+    if isinstance(var, dict):  
+        print(' ' * indent + '{')  
+        for key in var:  
+            print(' ' * (indent + 2) + 'key:' + key, end=' ')  
+            print_structure(var[key], indent + 2)  
+        print(' ' * indent + '}')  
+    elif isinstance(var, list):  
+        print(' ' * indent + '[')  
+        for item in var:  
+            print_structure(item, indent + 2)  
+        print(' ' * indent + ']')  
+    else:  
+        print(' ' * indent + type(var).__name__)
 
 def _cell_heights(cell_object):
     volume = cell_object.volume
@@ -91,6 +107,7 @@ class BufferData:
         return self.data_objects[index]
 
 
+# AttributeError: 'DensityData' object has no attribute 'parent'
 class DensityData:
     def __init__(self, datapath):
         if os.path.isfile(datapath) and datapath.endswith(".tar"):
@@ -104,6 +121,12 @@ class DensityData:
 
     def __getitem__(self, index):
         return self.data[index]
+
+    ### 这是我自定义的
+    def take(self, indices):
+        if not isinstance(indices, (list, tuple)):  
+            raise ValueError("indices must be an iterable (e.g., list or tuple)")    
+        return [self.data[idx] for idx in indices]
 
 
 class DensityDataDir:
@@ -466,8 +489,15 @@ class CollateFuncRandomSample:
         self.set_pbc = set_pbc_to
 
     def __call__(self, input_dicts: List):
+        # runner中有一处暂时取了filelist[0], 可能会导致本来应该是列表的input_dicts变成字典，所以这里把它转换成list 
+        if not isinstance(input_dicts, list):    
+            input_dicts = [input_dicts]
+            # print("input_dicts has been transformed into list!")
+        # print_structure(input_dicts)
         graphs = []
         for i in input_dicts:
+            # print("--------------debug remark 2--------------")
+            # print_structure(i)
             if self.set_pbc is not None:
                 atoms = i["atoms"].copy()
                 atoms.set_pbc(self.set_pbc)
@@ -566,7 +596,7 @@ def _read_vasp(filecontent):
     density = vasp_charge.chg[-1]  # separate density
     atoms = vasp_charge.atoms[-1]  # separate atom positions
 
-    return density, atoms, np.zeros(3)  # TODO: Can we always assume origin at 0,0,0?
+    return density, atoms, np.zeros(3) 
 
 
 def _read_cube(filecontent):
