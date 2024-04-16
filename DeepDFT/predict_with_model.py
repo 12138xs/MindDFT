@@ -42,6 +42,12 @@ def get_arguments(arg_list=None):
         help="Specify the device number to be used for inference e.g. '0' or '1'",
     )
     parser.add_argument(
+        "--mode",
+        type=str,
+        default="PYNATIVE",
+        help="Set the operating mode for the inference model for inference e.g. 'GRAPH' or 'PYNATIVE'",
+    )
+    parser.add_argument(
         "--ignore_pbc",
         action="store_true",
         help="If flag is given, disable periodic boundary conditions (force to False) in atoms data",
@@ -167,7 +173,14 @@ def main():
 
     device_target = args.device_target
     device_id = args.device_id
-    ms.set_context(device_target=device_target, device_id=device_id)
+    if args.mode == 'GRAPH':
+        compute_mode = ms.GRAPH_MODE
+    elif args.mode == 'PYNATIVE':
+        compute_mode = ms.PYNATIVE_MODE
+    else:
+        raise ValueError("Invalid value provided for the 'mode' parameter. Please specify either 'GRAPH' or 'PYNATIVE'.")
+
+    ms.set_context(device_target=device_target, device_id=device_id, mode=compute_mode)
 
     cubewriter = utils.CubeWriter(
         os.path.join(args.output_dir, "prediction.cube"),
