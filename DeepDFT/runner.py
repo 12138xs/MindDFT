@@ -104,7 +104,7 @@ def get_arguments(arg_list=None):
         help="Path to output directory",
     )
     parser.add_argument(
-        "--dataset", type=str, default="data/qm9", help="Path to ASE database",
+        "--dataset", type=str, default="./data/qm9", help="Path to ASE database",
     )
     parser.add_argument(
         "--max_steps",
@@ -483,7 +483,7 @@ def main():
             tstart = timeit.default_timer()
 
             # Reset gradient
-            # ms通常不需要手动清零，但是
+            # ms通常不需要手动清零
             # optimizer.zero_grad()
 
             # Forward, backward and optimize
