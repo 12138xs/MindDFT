@@ -128,6 +128,31 @@ class DensityData:
             raise ValueError("indices must be an iterable (e.g., list or tuple)")    
         return [self.data[idx] for idx in indices]
 
+    def concat(self, other: 'DensityData') -> 'DensityData':  
+        """  
+        Concatenate this DensityData object with another DensityData object.  
+  
+        :param other: Another DensityData object to concatenate with.  
+        :return: A new DensityData object that contains the concatenated data.  
+        """  
+        # 首先检查两个对象是否都是DensityData的实例  
+        if not isinstance(other, DensityData):  
+            raise ValueError("The 'other' object must be an instance of DensityData")  
+           
+        combined_data = []  
+          
+        # 合并当前对象的数据  
+        for i in range(len(self)):  
+            combined_data.append(self[i])  
+          
+        # 合并另一个对象的数据  
+        for i in range(len(other)):  
+            combined_data.append(other[i])  
+            
+        concatenated_data = DensityDataList(combined_data)  
+          
+        return concatenated_data
+
 
 class DensityDataDir:
     def __init__(self, directory):

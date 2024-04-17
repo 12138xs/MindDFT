@@ -34,6 +34,33 @@ def print_structure(var, indent=0):
     else:  
         print(' ' * indent + type(var).__name__)
 
+def structure(var, indent=0):  
+    output = ""  
+    if isinstance(var, dict):  
+        output += ' ' * indent + "{\n"  
+        for key in var:  
+            output += ' ' * (indent + 2) + "key:" + key + " "  
+            output += structure(var[key], indent + 2)  
+        output += ' ' * indent + "}\n"  
+    elif isinstance(var, list):  
+        output += ' ' * indent + "[\n"  
+        for item in var:  
+            output += structure(item, indent + 2)  
+        output += ' ' * indent + "]\n"  
+    else:  
+        output += ' ' * indent + type(var).__name__ + "\n"  
+    return output
+
+# 用于将list(train_loader)转化成单层列表
+def flatten(lst):  
+    result = []  
+    for i in lst:  
+        if isinstance(i, list):  
+            result.extend(flatten(i))  
+        else:  
+            result.append(i)  
+    return result
+
 # 用来实现LambdaLR
 def scheduler_fn(step):
     lr = 0.96 ** (step / 100000)
@@ -160,6 +187,7 @@ def split_data(dataset, args):
     datasplits = {}
     for key, indices in splits.items():
         datasplits[key] = dataset.take(indices)
+        #datasplits[key] = [dataset[idx] for idx in indices]
     return datasplits
 
 
@@ -278,16 +306,36 @@ def main():
 
     logging.info("loading data %s", args.dataset)
     #    densitydata = torch.utils.data.ConcatDataset([dataset.DensityData(path) for path in filelist])
-    densitydata = dataset.DensityData(filelist[0])
-    # 考虑不用ms
-    # densitydata = ms.dataset.ConcatDataset([dataset.DensityData(path) for path in filelist])
+    #densitydata = dataset.DensityData(filelist[0])
+    #combined_data = dataset.DensityData(filelist[0])
+    #print(combined_data[0]['atoms'])
+    #densitydata = []
+    #i = 0
+    #length_data = len(combined_data)
+    #for file in filelist:
+    #    len_file = len(filelist)
+    #    combined_data = dataset.DensityData(file)
+    #    for single_densitydata in combined_data:
+    #        densitydata.append(single_densitydata)
+    #        print(i, " / ", 20*len_file)
+    #        i+=1
+    #        if i>20:
+    #            break
+    
+    for i in range(0, len(filelist)):
+        if i==0:
+            densitydata = dataset.DensityData(filelist[0])
+        else:
+            densitydata.concat(dataset.DensityData(filelist[i]))
 
-    #########这里暂时将[dataset.DensityData(path) for path in filelist]用filelist[0]替代。
+    #print(densitydata[0]['atoms'])
+    # densitydata = ms.dataset.ConcatDataset([dataset.DensityData(path) for path in filelist])
 
     # Split data into train and validation sets
     datasplits = split_data(densitydata, args)
 
     datasplits["train"] = dataset.RotatingPoolData(datasplits["train"], 20)
+    # 已经查明，RotatingDataSet是可以迭代的，继续向下排查
 
     if args.ignore_pbc and args.force_pbc:
         raise ValueError("ignore_pbc and force_pbc are mutually exclusive and can't both be set at the same time")
@@ -307,9 +355,23 @@ def main():
     #      collate_fn=dataset.CollateFuncRandomSample(args.cutoff, 1000, pin_memory=False, set_pbc_to=set_pbc),
     #  )
 
-    ### 这里试着将column_names设为data,label, 但是后面会返回错误信息，提示columns_names应该是一维的，所以这里尝试更改columns_names
     # 1、 312 2、for 可迭代
     #column_names = ["data", "label"]
+    #问题出在datasplits好像并不是完全一样的，所以这里试图对datasplits做一个清洗
+    #print("===================Wash datasplits===================")
+    #print_structure(datasplits["train"][0])
+    #counter_splits = 0
+    #for single_data in datasplits["train"]:
+    #    print_structure(single_data)
+    #    if structure(single_data)!=structure(datasplits["train"][0]):
+    #        counter_splits+=1
+    #print(counter_splits, " different data in total!") 
+    #print("=====================================================")
+    #结论：datasplits["train"]没有问题，完全是一样的。
+
+    #实验发现：改变batch_size（2->1）会让程序一下子跑不动，不知道是什么原因
+    
+
     train_loader = ms.dataset.GeneratorDataset(
         datasplits["train"],
         #  collate_fn, batch_size通过mindspore.dataset.batch 操作支持
@@ -318,10 +380,16 @@ def main():
         column_names=["train"],
         sampler = ms.dataset.RandomSampler(num_samples=len(datasplits["train"]), replacement=False)
     )
+
     train_loader = train_loader.map(operations=dataset.CollateFuncRandomSample(args.cutoff, 1000, set_pbc_to=set_pbc),
                                     input_columns=["train"])
-    train_loader = train_loader.batch(batch_size=2, drop_remainder=True)
-    train_loader = train_loader.repeat(count=-1)
+    
+    train_loader = train_loader.batch(batch_size=1, drop_remainder=True)
+    
+    train_loader = train_loader.repeat(count=2)
+
+    # 结论：train_loader就是不可迭代的
+    # 4/10 train_loader可以通过list(train_loader)转换成可迭代的，但是我已转换就会报错说长度不匹配。
 
     # val_loader = torch.utils.data.DataLoader(
     #    datasplits["validation"],
@@ -338,14 +406,16 @@ def main():
     )
     val_loader = val_loader.map(operations=dataset.CollateFuncRandomSample(args.cutoff, 5000, set_pbc_to=set_pbc),
                                 input_columns=["validations"])
-    val_loader = val_loader.batch(batch_size=2, drop_remainder=True)
+    val_loader = val_loader.batch(batch_size=1, drop_remainder=True)
     logging.info("Preloading validation batch")
 
     # Initialise model
     # device = torch.device(args.device)
     device = args.device
-    ### 静态图、动态图都通过
-    ms.context.set_context(device_target='CPU')
+
+    ### 这里使用静态图，CPU
+    ms.context.set_context(mode=ms.context.GRAPH_MODE, device_target='CPU')
+
     # net = net.to(device)
     if args.use_painn_model:
         net = densitymodel.PainnDensityModel(args.num_interactions, args.node_size, args.cutoff)
@@ -388,21 +458,33 @@ def main():
     eval_timer = AverageMeter("eval_time")
 
     endtime = timeit.default_timer()
+
+    #print_structure(list(train_loader)[0][0])
+    # 这里需要把list(train_loader)转化成[{}, {}]的形式
+    #print("=============Flattening Train_loader============")
+    train_loader_list = flatten(list(train_loader))
+
     for _ in itertools.count():
-        print_structure(train_loader[0])
-        for batch_host in train_loader:
+        #for batch_host in train_loader_list:
+        for batch in train_loader_list:
+
+            # 使用timeit作为计时方法
             data_timer.update(timeit.default_timer() - endtime)
             tstart = timeit.default_timer()
+
             # Transfer to 'device'
-            batch = {
-                k: v.to(device=device, non_blocking=True)
-                for (k, v) in batch_host.items()
-            }
+            # ms不需要将batch_host迁移至batch
+            #batch = {
+            #    k: v.to(device=device, non_blocking=True)
+            #    for (k, v) in batch_host.items()
+            #}
             transfer_timer.update(timeit.default_timer() - tstart)
 
             tstart = timeit.default_timer()
+
             # Reset gradient
-            optimizer.zero_grad()
+            # ms通常不需要手动清零，但是
+            # optimizer.zero_grad()
 
             # Forward, backward and optimize
             outputs = net(batch)
@@ -410,9 +492,9 @@ def main():
             loss.backward()
             optimizer.step()
 
-            #            with torch.no_grad():
-            #                running_loss += loss * batch["probe_target"].shape[0] * batch["probe_target"].shape[1]
-            #                running_loss_count += torch.sum(batch["num_probes"])
+            #with torch.no_grad():
+            #    running_loss += loss * batch["probe_target"].shape[0] * batch["probe_target"].shape[1]
+            #    running_loss_count += torch.sum(batch["num_probes"])
             running_loss += ops.mul(loss, ops.mul(batch["probe_target"].shape[0], batch["probe_target"].shape[1]))
             running_loss_count += ops.sum(batch["num_probes"])
 
