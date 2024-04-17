@@ -4,6 +4,7 @@ import numpy as np
 import mindspore as ms
 from mindspore import nn, ops
 
+
 def pad_and_stack(tensors: List[ms.Tensor]):
     """Pad list of tensors if tensors are arrays and stack if they are scalars"""
     if tensors[0].shape:
@@ -30,6 +31,11 @@ def unpad_and_cat(stacked_seq: ms.Tensor, seq_len: ms.Tensor):
     seq_len = seq_len.numpy().tolist()
     unpadded = [ops.narrow(t, 0, 0, l) for (t, l) in zip(unstacked, seq_len)]
     return ops.cat(unpadded, axis=0)
+
+
+def batch_dim_reduction(stacked_seq: ms.Tensor):
+    """Unpad and concatenate by removing batch dimension, Used in GRAPH mode"""
+    return ops.reshape(stacked_seq, stacked_seq.shape[1:])
 
 
 def sum_splits(values: ms.Tensor, splits: ms.Tensor):
@@ -98,24 +104,31 @@ def calc_distance_to_probe(
 
 def gaussian_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
     """Expand each feature in a number of Gaussian basis function.
-    Expand_params is a list of length input_x.shape[1]"""
+    Expand_params is a list of length input_x.shape[1]. Changes have
+    been made to fit with GRAPH mode"""
     feat_list = ops.unbind(input_x, dim=1)
     expanded_list = []
-    for step_tuple, feat in itertools.zip_longest(expand_params, feat_list):
-        assert feat is not None, "Too many expansion parameters given"
-        if step_tuple:
-            start, step, stop = step_tuple
-            feat_expanded = ops.unsqueeze(feat, dim=1)
-            sigma = step
-            basis_mu = ops.arange(
-                start, stop, step, dtype=input_x.dtype
-            )
 
-            expanded_list.append(
-                ops.exp(-((feat_expanded - basis_mu) ** 2) / (2.0 * sigma ** 2))
-            )
-        else:
-            expanded_list.append(ops.unsqueeze(feat, 1))
+    min_length = min(len(expand_params), len(feat_list))  # make sure of the same length
+    for i in range(min_length):
+        step_tuple = expand_params[i]
+        feat = feat_list[i]
+        assert feat is not None, "提供了过多的扩展参数"
+        start, step, stop = step_tuple
+        feat_expanded = ops.unsqueeze(feat, dim=1)
+        sigma = step
+        basis_mu = ops.arange(start, stop, step, dtype=input_x.dtype)
+        expanded_list.append(
+            ops.exp(-((feat_expanded - basis_mu) ** 2) / (2.0 * sigma ** 2))
+        )
+
+    # dealing with the extra expand_params provided
+    for step_tuple in expand_params[min_length:]:
+        start, step, stop = step_tuple
+        expanded_list.append(
+            ops.exp(-((0 - ops.arange(start, stop, step, dtype=input_x.dtype)) ** 2) / (2.0 * step ** 2))
+        )
+
     return ops.cat(expanded_list, axis=1)
 
 

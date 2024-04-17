@@ -207,10 +207,8 @@ class ProbeMessageModel(nn.Cell):
         **input_dict
     ):
         # Unpad and concatenate edges and features into batch (0th) dimension
-        atom_xyz = layer.unpad_and_cat(input_dict["atom_xyz"], input_dict["num_nodes"])
-        probe_xyz = layer.unpad_and_cat(
-            probe_xyz, input_dict["num_probes"]
-        )
+        atom_xyz = layer.batch_dim_reduction(input_dict["atom_xyz"])
+        probe_xyz = layer.batch_dim_reduction(probe_xyz)
         edge_offset = ops.cumsum(
             ops.cat(
                 (
@@ -223,8 +221,8 @@ class ProbeMessageModel(nn.Cell):
         edge_offset = edge_offset[:, None, None]
 
         # Unpad and concatenate probe edges into batch (0th) dimension
-        probe_edges_displacement = layer.unpad_and_cat(
-            input_dict["probe_edges_displacement"], input_dict["num_probe_edges"]
+        probe_edges_displacement = layer.batch_dim_reduction(
+            input_dict["probe_edges_displacement"]
         )
         edge_probe_offset = ops.cumsum(
             ops.cat(
@@ -238,7 +236,7 @@ class ProbeMessageModel(nn.Cell):
         edge_probe_offset = edge_probe_offset[:, None, None]
         edge_probe_offset = ops.cat((edge_offset, edge_probe_offset), axis=2)
         probe_edges = input_dict["probe_edges"] + edge_probe_offset
-        probe_edges = layer.unpad_and_cat(probe_edges, input_dict["num_probe_edges"])
+        probe_edges = layer.batch_dim_reduction(probe_edges)
 
         # Compute edge distances
         probe_edges_features = layer.calc_distance_to_probe(
@@ -325,8 +323,8 @@ class AtomRepresentationModel(nn.Cell):
 
     def construct(self, input_dict):
         # Unpad and concatenate edges and features into batch (0th) dimension
-        edges_displacement = layer.unpad_and_cat(
-            input_dict["atom_edges_displacement"], input_dict["num_atom_edges"]
+        edges_displacement = layer.batch_dim_reduction(
+            input_dict["atom_edges_displacement"]
         )
         edge_offset = ops.cumsum(
             ops.cat(
@@ -339,11 +337,11 @@ class AtomRepresentationModel(nn.Cell):
         )
         edge_offset = edge_offset[:, None, None]
         edges = input_dict["atom_edges"] + edge_offset
-        edges = layer.unpad_and_cat(edges, input_dict["num_atom_edges"])
+        edges = layer.batch_dim_reduction(edges)
 
         # Unpad and concatenate all nodes into batch (0th) dimension
-        atom_xyz = layer.unpad_and_cat(input_dict["atom_xyz"], input_dict["num_nodes"])
-        nodes = layer.unpad_and_cat(input_dict["nodes"], input_dict["num_nodes"])
+        atom_xyz = layer.batch_dim_reduction(input_dict["atom_xyz"])
+        nodes = layer.batch_dim_reduction(input_dict["nodes"])
         nodes = self.atom_embeddings(nodes)
 
         # Compute edge distances
@@ -406,8 +404,8 @@ class PainnAtomRepresentationModel(nn.Cell):
 
     def construct(self, input_dict):
         # Unpad and concatenate edges and features into batch (0th) dimension
-        edges_displacement = layer.unpad_and_cat(
-            input_dict["atom_edges_displacement"], input_dict["num_atom_edges"]
+        edges_displacement = layer.batch_dim_reduction(
+            input_dict["atom_edges_displacement"]
         )
         edge_offset = ops.cumsum(
             ops.cat(
@@ -420,11 +418,11 @@ class PainnAtomRepresentationModel(nn.Cell):
         )
         edge_offset = edge_offset[:, None, None]
         edges = input_dict["atom_edges"] + edge_offset
-        edges = layer.unpad_and_cat(edges, input_dict["num_atom_edges"])
+        edges = layer.batch_dim_reduction(edges)
 
         # Unpad and concatenate all nodes into batch (0th) dimension
-        atom_xyz = layer.unpad_and_cat(input_dict["atom_xyz"], input_dict["num_nodes"])
-        nodes_scalar = layer.unpad_and_cat(input_dict["nodes"], input_dict["num_nodes"])
+        atom_xyz = layer.batch_dim_reduction(input_dict["atom_xyz"])
+        nodes_scalar = layer.batch_dim_reduction(input_dict["nodes"])
         nodes_scalar = self.atom_embeddings(nodes_scalar)
         nodes_vector = ops.zeros(
             (nodes_scalar.shape[0], 3, self.hidden_state_size),
@@ -583,10 +581,8 @@ class PainnProbeMessageModel(nn.Cell):
         **input_dict
     ):
         # Unpad and concatenate edges and features into batch (0th) dimension
-        atom_xyz = layer.unpad_and_cat(input_dict["atom_xyz"], input_dict["num_nodes"])
-        probe_xyz = layer.unpad_and_cat(
-            probe_xyz, input_dict["num_probes"]
-        )
+        atom_xyz = layer.batch_dim_reduction(input_dict["atom_xyz"])
+        probe_xyz = layer.batch_dim_reduction(probe_xyz)
         edge_offset = ops.cumsum(
             ops.cat(
                 (
@@ -599,8 +595,8 @@ class PainnProbeMessageModel(nn.Cell):
         edge_offset = edge_offset[:, None, None]
 
         # Unpad and concatenate probe edges into batch (0th) dimension
-        probe_edges_displacement = layer.unpad_and_cat(
-            input_dict["probe_edges_displacement"], input_dict["num_probe_edges"]
+        probe_edges_displacement = layer.batch_dim_reduction(
+            input_dict["probe_edges_displacement"]
         )
         edge_probe_offset = ops.cumsum(
             ops.cat(
@@ -614,7 +610,7 @@ class PainnProbeMessageModel(nn.Cell):
         edge_probe_offset = edge_probe_offset[:, None, None]
         edge_probe_offset = ops.cat((edge_offset, edge_probe_offset), axis=2)
         probe_edges = input_dict["probe_edges"] + edge_probe_offset
-        probe_edges = layer.unpad_and_cat(probe_edges, input_dict["num_probe_edges"])
+        probe_edges = layer.batch_dim_reduction(probe_edges)
 
         # Compute edge distances
         probe_edges_distance, probe_edges_diff = layer.calc_distance_to_probe(
