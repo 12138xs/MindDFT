@@ -65,7 +65,7 @@ class PainnDensityModel(nn.Cell):
 
     def construct(self, input_dict):
         atom_representation_scalar, atom_representation_vector = self.atom_model(input_dict)
-        probe_result = self.probe_model(input_dict, atom_representation_scalar, atom_representation_vector)
+        probe_result = self.probe_model(input_dict["probe_xyz"], atom_representation_scalar, atom_representation_vector, input_dict)
         return probe_result
 
 
@@ -578,12 +578,13 @@ class PainnProbeMessageModel(nn.Cell):
         probe_xyz: ms.Tensor,
         atom_representation_scalar: List[ms.Tensor],
         atom_representation_vector: List[ms.Tensor],
-        **input_dict
+        input_dict: Dict,
+        **kwargs,
     ):
         # Unpad and concatenate edges and features into batch (0th) dimension
-        print("===========DEBUG DENSITYMODEL CONSTRUCT=========")
-        print(input_dict)
-        print("===========DEBUG CONSTRUCT END==================")
+        #print("===========DEBUG DENSITYMODEL CONSTRUCT=========")
+        #print(input_dict)
+        #print("===========DEBUG CONSTRUCT END==================")
         atom_xyz = layer.batch_dim_reduction(input_dict["atom_xyz"])
         edge_offset = ops.cumsum(
             ops.cat(

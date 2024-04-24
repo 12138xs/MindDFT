@@ -446,10 +446,11 @@ def sinc_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
     # 这里本来用的是itertools.zip_longest，但是"TypeError: <class 'NoneType'> object is not iterable in graph mode."
     # 我怀疑是因为zip_longest会填充none导致，因此改为itertools.zip，但好像不是这个问题
     #for step_tuple, feat in itertools.zip_longest(expand_params, feat_list):
-    print("===================REMARK SINC_EXPANSION==================")
-    print(itertools.zip_longest(expand_params, feat_list))
-    print("===================REMARK SINC END========================")
     for step_tuple, feat in itertools.zip_longest(expand_params, feat_list):
+        print("===================REMARK SINC_EXPANSION==================")
+        print(step_tuple)
+        print(feat)
+        print("===================REMARK SINC END========================")
         assert feat is not None, "Too many expansion parameters given"
         if step_tuple:
             n, cutoff = step_tuple
