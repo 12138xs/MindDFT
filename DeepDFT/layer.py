@@ -4,6 +4,20 @@ import numpy as np
 import mindspore as ms
 from mindspore import nn, ops
 
+def print_structure(var, indent=0):  
+    if isinstance(var, dict):  
+        print(' ' * indent + '{')  
+        for key in var:  
+            print(' ' * (indent + 2) + 'key:' + key, end=' ')  
+            print_structure(var[key], indent + 2)  
+        print(' ' * indent + '}')  
+    elif isinstance(var, list):  
+        print(' ' * indent + '[')  
+        for item in var:  
+            print_structure(item, indent + 2)  
+        print(' ' * indent + ']')  
+    else:  
+        print(' ' * indent + type(var).__name__)
 
 def pad_and_stack(tensors: List[ms.Tensor]):
     """Pad list of tensors if tensors are arrays and stack if they are scalars"""
@@ -429,6 +443,12 @@ def sinc_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
     """Expand each feature in a sinc-like basis function expansion."""
     feat_list = ops.unbind(input_x, dim=1)
     expanded_list = []
+    # 这里本来用的是itertools.zip_longest，但是"TypeError: <class 'NoneType'> object is not iterable in graph mode."
+    # 我怀疑是因为zip_longest会填充none导致，因此改为itertools.zip，但好像不是这个问题
+    #for step_tuple, feat in itertools.zip_longest(expand_params, feat_list):
+    print("===================REMARK SINC_EXPANSION==================")
+    print(itertools.zip_longest(expand_params, feat_list))
+    print("===================REMARK SINC END========================")
     for step_tuple, feat in itertools.zip_longest(expand_params, feat_list):
         assert feat is not None, "Too many expansion parameters given"
         if step_tuple:

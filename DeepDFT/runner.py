@@ -14,11 +14,12 @@ import numpy as np
 import mindspore as ms
 import mindspore.nn as nn
 import mindspore.ops as ops
+import mindspore.common.dtype as mstype 
 
 import densitymodel
 import dataset
 
-# 这个函数也是用来调试的,用来查看数据结构
+# 这个函数是用来调试的,用来查看数据结构
 def print_structure(var, indent=0):  
     if isinstance(var, dict):  
         print(' ' * indent + '{')  
@@ -414,7 +415,9 @@ def main():
     device = args.device
 
     ### 这里使用静态图，CPU
-    ms.context.set_context(mode=ms.context.GRAPH_MODE, device_target='CPU')
+    #ms.context.set_context(mode=ms.context.GRAPH_MODE, device_target='CPU')
+    # 后面静态图跑不通，这里先用动态图试试
+    ms.context.set_context(mode=ms.context.PYNATIVE_MODE, device_target='CPU')
 
     # net = net.to(device)
     if args.use_painn_model:
@@ -467,6 +470,16 @@ def main():
     for _ in itertools.count():
         #for batch_host in train_loader_list:
         for batch in train_loader_list:
+            batch32 = {}  
+            for key, value in batch.items():  
+                if isinstance(value, ms.Tensor) and value.dtype == mstype.int64:   
+                    converted_value = ms.Tensor(value.asnumpy().astype('int32'), mstype.int32)  
+                else:   
+                    converted_value = value  
+                batch32[key] = converted_value
+            print("==================REMARK BATCH===================")
+            print_structure(batch32)
+            print("==================REMARK BATCH END===============")  
 
             # 使用timeit作为计时方法
             data_timer.update(timeit.default_timer() - endtime)
@@ -479,7 +492,6 @@ def main():
             #    for (k, v) in batch_host.items()
             #}
             transfer_timer.update(timeit.default_timer() - tstart)
-
             tstart = timeit.default_timer()
 
             # Reset gradient
@@ -487,7 +499,7 @@ def main():
             # optimizer.zero_grad()
 
             # Forward, backward and optimize
-            outputs = net(batch)
+            outputs = net(input_dict=batch32)
             loss = criterion(outputs, batch["probe_target"])
             loss.backward()
             optimizer.step()
