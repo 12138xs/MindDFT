@@ -128,7 +128,7 @@ class ProbeMessageModel(nn.Cell):
             nn.Dense(hidden_state_size, 1),
         )
 
-        self.grad_function = ms.grad(self, grad_position=0)
+        self.grad_function = ops.GradOperation()(self)
 
     def construct_and_gradients(
         self,
@@ -165,7 +165,7 @@ class ProbeMessageModel(nn.Cell):
                 Graph_norm_grad_2(self),
                 grad_position=0
             )
-           
+
             probe_xyz = input_dict["probe_xyz"].copy()
             grad_norm_grad_2 = grad_function_norm_grad_2(
                 probe_xyz,
@@ -202,13 +202,13 @@ class ProbeMessageModel(nn.Cell):
 
     def construct(
         self,
-        probe_xyz: ms.Tensor, /,
+        probe_xyz_: ms.Tensor,
         atom_representation: List[ms.Tensor],
         **input_dict
     ):
         # Unpad and concatenate edges and features into batch (0th) dimension
         atom_xyz = layer.batch_dim_reduction(input_dict["atom_xyz"])
-        probe_xyz = layer.batch_dim_reduction(probe_xyz)
+        probe_xyz = layer.batch_dim_reduction(probe_xyz_)
         edge_offset = ops.cumsum(
             ops.cat(
                 (
@@ -276,7 +276,7 @@ class ProbeMessageModel(nn.Cell):
             probe_state = probe_state * gates + (1 - gates) * state_layer(msgsum)
         # Restack probe states
         probe_output = self.readout_function(probe_state).squeeze(1)
-        
+
         probe_output = layer.pad_and_stack(
             ops.split(
                 probe_output,

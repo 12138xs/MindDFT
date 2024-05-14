@@ -103,17 +103,17 @@ def calc_distance_to_probe(
 
 
 def gaussian_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
-    """Expand each feature in a number of Gaussian basis function.
-    Expand_params is a list of length input_x.shape[1]. Changes have
-    been made to fit with GRAPH mode"""
+    """将输入张量中的每个特征按照一组高斯基函数进行扩展。
+    expand_params是一个长度为input_x.shape[1]的列表"""
     feat_list = ops.unbind(input_x, dim=1)
     expanded_list = []
 
-    min_length = min(len(expand_params), len(feat_list))  # make sure of the same length
+    # 确保expand_params和feat_list具有相同的长度
+    min_length = min(len(expand_params), len(feat_list))
+    assert min_length <= len(feat_list), "提供了过多的扩展参数"
     for i in range(min_length):
         step_tuple = expand_params[i]
         feat = feat_list[i]
-        assert feat is not None, "提供了过多的扩展参数"
         start, step, stop = step_tuple
         feat_expanded = ops.unsqueeze(feat, dim=1)
         sigma = step
@@ -122,12 +122,9 @@ def gaussian_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
             ops.exp(-((feat_expanded - basis_mu) ** 2) / (2.0 * sigma ** 2))
         )
 
-    # dealing with the extra expand_params provided
-    for step_tuple in expand_params[min_length:]:
-        start, step, stop = step_tuple
-        expanded_list.append(
-            ops.exp(-((0 - ops.arange(start, stop, step, dtype=input_x.dtype)) ** 2) / (2.0 * step ** 2))
-        )
+    # 如果feat_list的长度大于expand_params的长度，处理剩余的feat_list
+    for feat in feat_list[min_length:]:
+        expanded_list.append(ops.unsqueeze(feat, 1))
 
     return ops.cat(expanded_list, axis=1)
 
@@ -322,10 +319,10 @@ class PaiNNInteraction(nn.Cell):
         )
 
         # Sum messages
-        message_sum_scalar = ms.Parameter(ops.zeros_like(node_state_scalar))
-        message_sum_scalar = ops.index_add(message_sum_scalar, edges[:, 1], messages_scalar, 0)
-        message_sum_vector = ms.Parameter(ops.zeros_like(node_state_vector))
-        message_sum_vector = ops.index_add(message_sum_vector, edges[:, 1], messages_state_vector, 0)
+        message_sum_scalar = ops.zeros_like(node_state_scalar)
+        message_sum_scalar = ops.tensor_scatter_add(message_sum_scalar, ops.expand_dims(edges[:, 1], axis=1), messages_scalar)
+        message_sum_vector = ops.zeros_like(node_state_vector)
+        message_sum_vector = ops.tensor_scatter_add(message_sum_vector, ops.expand_dims(edges[:, 1], axis=1), messages_state_vector)
 
         # State transition
         new_state_scalar = node_state_scalar + message_sum_scalar
@@ -429,17 +426,22 @@ def sinc_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
     """Expand each feature in a sinc-like basis function expansion."""
     feat_list = ops.unbind(input_x, dim=1)
     expanded_list = []
-    for step_tuple, feat in itertools.zip_longest(expand_params, feat_list):
+    # 确保expand_params和feat_list具有相同的长度
+    min_length = min(len(expand_params), len(feat_list))
+    for i in range(min_length):
+        step_tuple = expand_params[i]
+        feat = feat_list[i]
         assert feat is not None, "Too many expansion parameters given"
-        if step_tuple:
-            n, cutoff = step_tuple
-            feat_expanded = ops.unsqueeze(feat, dim=1)
-            n_range = ops.arange(n, dtype=input_x.dtype) + 1
-            # multiplication by pi n_range / cutoff is done in original painn for some reason
-            out = ops.sinc(n_range/cutoff*feat_expanded)*np.pi*n_range/cutoff
-            expanded_list.append(out)
-        else:
-            expanded_list.append(ops.unsqueeze(feat, 1))
+        n, cutoff = step_tuple
+        feat_expanded = ops.unsqueeze(feat, dim=1)
+        n_range = ops.arange(n, dtype=input_x.dtype) + 1
+        # multiplication by pi n_range / cutoff is done in original painn for some reason
+        out = ops.sinc(n_range/cutoff*feat_expanded)*np.pi*n_range/cutoff
+        expanded_list.append(out)
+
+    # 如果feat_list的长度大于expand_params的长度，处理剩余的feat_list
+    for feat in feat_list[min_length:]:
+        expanded_list.append(ops.unsqueeze(feat, 1))
     return ops.cat(expanded_list, axis=1)
 
 
