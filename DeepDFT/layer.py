@@ -17,7 +17,7 @@ def pad_and_stack(tensors: List[ms.Tensor]):
 
 def shifted_softplus(x):
     """Compute shifted soft-plus activation function"""
-    return ops.softplus(x) - np.log(2.0)
+    return ops.softplus(x) - ops.log(ms.Tensor(2.0, dtype=ms.float32))
 
 
 class ShiftedSoftplus(nn.Cell):
@@ -207,18 +207,18 @@ class MessageSum(nn.Cell):
                 nodes = ops.cat((senders, receivers), axis=1)
             else:
                 num_edges = edges.shape[0]
-                nodes = ops.reshape(node_state[edges], (num_edges, -1))
+                nodes = ops.reshape(ops.gather(node_state, edges, 0), [num_edges, -1])
         else:
             nodes = node_state[edges[:, 0]]  # Only include sender in messages
         messages = self.message_function(nodes, edge_state, edges_distance)
 
         # Sum messages
         if receiver_nodes is not None:
-            message_sum = ms.Parameter(ops.zeros_like(receiver_nodes))
+            message_sum = ops.zeros_like(receiver_nodes)
         else:
-            message_sum = ms.Parameter(ops.zeros_like(node_state))
+            message_sum = ops.zeros_like(node_state)
 
-        message_sum = ops.index_add(message_sum, edges[:, 1], messages, 0)
+        message_sum = ops.tensor_scatter_add(message_sum, ops.expand_dims(edges[:, 1], axis=1), messages)
         return message_sum
 
 

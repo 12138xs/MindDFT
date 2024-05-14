@@ -154,6 +154,18 @@ def load_molecule(atoms, grid_step, vacuum):
 def main():
     args = get_arguments()
 
+    device_target = args.device_target
+    device_id = args.device_id
+    if args.mode == 'GRAPH':
+        compute_mode = ms.GRAPH_MODE
+    elif args.mode == 'PYNATIVE':
+        compute_mode = ms.PYNATIVE_MODE
+    else:
+        raise ValueError(
+            "Invalid value provided for the 'mode' parameter. Please specify either 'GRAPH' or 'PYNATIVE'.")
+
+    ms.set_context(device_target=device_target, device_id=device_id, mode=compute_mode)
+
     # Setup logging
     os.makedirs(args.output_dir, exist_ok=True)
     logging.basicConfig(
@@ -170,17 +182,6 @@ def main():
     model, cutoff = load_model(args.model_dir)
 
     density_dict = load_atoms(args.atoms_file, args.vacuum, args.grid_step)
-
-    device_target = args.device_target
-    device_id = args.device_id
-    if args.mode == 'GRAPH':
-        compute_mode = ms.GRAPH_MODE
-    elif args.mode == 'PYNATIVE':
-        compute_mode = ms.PYNATIVE_MODE
-    else:
-        raise ValueError("Invalid value provided for the 'mode' parameter. Please specify either 'GRAPH' or 'PYNATIVE'.")
-
-    ms.set_context(device_target=device_target, device_id=device_id, mode=compute_mode)
 
     cubewriter = utils.CubeWriter(
         os.path.join(args.output_dir, "prediction.cube"),
