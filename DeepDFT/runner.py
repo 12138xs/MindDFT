@@ -212,23 +212,40 @@ def split_data(dataset, args):
 #        rmse = (torch.sqrt(running_se / running_count)).item()
 
 #    return mae, rmse
+def convert_batch_int32(batch:dict):
+    batch32 = {}  
+    for key, value in batch.items():  
+        if isinstance(value, ms.Tensor) and value.dtype == mstype.int64:   
+            converted_value = ms.Tensor(value.asnumpy().astype('int32'), mstype.int32)  
+                    #key: [nodes, num_nodes, num_atom_edges, num_probe_edges, num_probes]
+        else:   
+            converted_value = value
+        batch32[key] = converted_value
+    return batch32
 
 # calculate mse rmse
-def eval_model(model, dataloader, device):
+def eval_model(model, dataloader):
     running_ae = ms.Tensor(0., dtype=ms.float32)
     running_se = ms.Tensor(0., dtype=ms.float32)
     running_count = ms.Tensor(0., dtype=ms.float32)
 
-    for batch in dataloader.create_tuple_iterator():
-        device_batch = {
-            k: ms.Tensor(v, dtype=ms.float32) for k, v in batch.items()
-        }
-        outputs = model(**device_batch)
-        targets = device_batch["probe_target"]
+    for batch in dataloader:
+        print("=============REMARK EVALMODEL============")
+        print_structure(batch)
+        batch32 = {}  
+        for key, value in batch.items():  
+            if isinstance(value, ms.Tensor) and value.dtype == mstype.int64:   
+                converted_value = ms.Tensor(value.asnumpy().astype('int32'), mstype.int32)  
+            else:   
+                converted_value = value  
+            batch32[key] = converted_value
+        outputs = model(batch32)
+        print(outputs.dtype)
+        targets = batch32["probe_target"]
 
         running_ae += ms.ops.abs(targets - outputs).sum()
         running_se += ms.ops.square(targets - outputs).sum()
-        running_count += device_batch["num_probes"].sum()
+        running_count += batch32["num_probes"].sum()
 
     mae = (running_ae / running_count).asnumpy()
     rmse = (ms.ops.sqrt(running_se / running_count)).asnumpy()
@@ -355,24 +372,7 @@ def main():
     #      sampler=torch.utils.data.RandomSampler(datasplits["train"]),
     #      collate_fn=dataset.CollateFuncRandomSample(args.cutoff, 1000, pin_memory=False, set_pbc_to=set_pbc),
     #  )
-
-    # 1、 312 2、for 可迭代
-    #column_names = ["data", "label"]
-    #问题出在datasplits好像并不是完全一样的，所以这里试图对datasplits做一个清洗
-    #print("===================Wash datasplits===================")
-    #print_structure(datasplits["train"][0])
-    #counter_splits = 0
-    #for single_data in datasplits["train"]:
-    #    print_structure(single_data)
-    #    if structure(single_data)!=structure(datasplits["train"][0]):
-    #        counter_splits+=1
-    #print(counter_splits, " different data in total!") 
-    #print("=====================================================")
-    #结论：datasplits["train"]没有问题，完全是一样的。
-
-    #实验发现：改变batch_size（2->1）会让程序一下子跑不动，不知道是什么原因
     
-
     train_loader = ms.dataset.GeneratorDataset(
         datasplits["train"],
         #  collate_fn, batch_size通过mindspore.dataset.batch 操作支持
@@ -381,24 +381,14 @@ def main():
         column_names=["train"],
         sampler = ms.dataset.RandomSampler(num_samples=len(datasplits["train"]), replacement=False)
     )
-
     train_loader = train_loader.map(operations=dataset.CollateFuncRandomSample(args.cutoff, 1000, set_pbc_to=set_pbc),
                                     input_columns=["train"])
-    
     train_loader = train_loader.batch(batch_size=1, drop_remainder=True)
-    
-    train_loader = train_loader.repeat(count=2)
+    train_loader = train_loader.repeat(count=3)
 
     # 结论：train_loader就是不可迭代的
-    # 4/10 train_loader可以通过list(train_loader)转换成可迭代的，但是我已转换就会报错说长度不匹配。
+    # 4/10 train_loader可以通过list(train_loader)转换成可迭代的。
 
-    # val_loader = torch.utils.data.DataLoader(
-    #    datasplits["validation"],
-    #    2,
-    #    collate_fn=dataset.CollateFuncRandomSample(args.cutoff, 5000, pin_memory=False, set_pbc_to=set_pbc),
-    #    num_workers=0,
-    # )
-    # logging.info("Preloading validation batch")
     val_loader = ms.dataset.GeneratorDataset(
         datasplits["validation"],
         num_parallel_workers=4,
@@ -411,9 +401,6 @@ def main():
     logging.info("Preloading validation batch")
 
     # Initialise model
-    # device = torch.device(args.device)
-    device = args.device
-
     ### 这里使用静态图，CPU
     #ms.context.set_context(mode=ms.context.GRAPH_MODE, device_target='CPU')
     # 后面静态图跑不通，这里先用动态图试试
@@ -427,13 +414,11 @@ def main():
     logging.debug("model has %d parameters", count_parameters(net))
 
     # Setup optimizer
-    # optimizer = torch.optim.Adam(net.parameters(), lr=0.0001)
-    optimizer = nn.Adam(net.trainable_params(), learning_rate=0.0001)
-    # criterion = torch.nn.MSELoss()
+    schedulelr = nn.learning_rate_schedule.ExponentialDecayLR(learning_rate=1.0, decay_rate=0.96, decay_steps=100000)
+    optimizer = nn.Adam(net.trainable_params(), learning_rate=schedulelr)
     criterion = nn.MSELoss()
-    # scheduler_fn = lambda step: 0.96 ** (step / 100000)
-    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, scheduler_fn)
-    scheduler = ms.train.callback.LearningRateScheduler(scheduler_fn)
+    loss_net = nn.WithLossCell(net, criterion)
+    train_net = nn.TrainOneStepCell(loss_net, optimizer)
 
     log_interval = 5000
     running_loss = ms.tensor(0.0)
@@ -462,24 +447,18 @@ def main():
 
     endtime = timeit.default_timer()
 
-    #print_structure(list(train_loader)[0][0])
-    # 这里需要把list(train_loader)转化成[{}, {}]的形式
-    #print("=============Flattening Train_loader============")
     train_loader_list = flatten(list(train_loader))
+    train_loader_list = [convert_batch_int32(batch) for batch in train_loader_list]
+    val_loader_list = flatten(list(val_loader))
+    val_loader_list = [convert_batch_int32(batch) for batch in val_loader_list]
+    print(len(train_loader_list), len(val_loader_list))
+
+    # mindspore需要定义梯度操作
+    grad_op = ops.GradOperation(get_all=True) 
 
     for _ in itertools.count():
         #for batch_host in train_loader_list:
-        for batch in train_loader_list:
-            batch32 = {}  
-            for key, value in batch.items():  
-                if isinstance(value, ms.Tensor) and value.dtype == mstype.int64:   
-                    converted_value = ms.Tensor(value.asnumpy().astype('int32'), mstype.int32)  
-                else:   
-                    converted_value = value  
-                batch32[key] = converted_value
-            print("==================REMARK BATCH===================")
-            print_structure(batch32)
-            print("==================REMARK BATCH END===============")  
+        for batch32 in train_loader_list:
 
             # 使用timeit作为计时方法
             data_timer.update(timeit.default_timer() - endtime)
@@ -499,30 +478,27 @@ def main():
             # optimizer.zero_grad()
 
             # Forward, backward and optimize
-            outputs = net(input_dict=batch32)
-            loss = criterion(outputs, batch["probe_target"])
-            loss.backward()
-            optimizer.step()
+            loss = train_net(batch32, batch32["probe_target"])
 
             #with torch.no_grad():
             #    running_loss += loss * batch["probe_target"].shape[0] * batch["probe_target"].shape[1]
             #    running_loss_count += torch.sum(batch["num_probes"])
-            running_loss += ops.mul(loss, ops.mul(batch["probe_target"].shape[0], batch["probe_target"].shape[1]))
-            running_loss_count += ops.sum(batch["num_probes"])
+            running_loss += ops.mul(loss, ops.mul(batch32["probe_target"].shape[0], batch32["probe_target"].shape[1]))
+            running_loss_count += ops.sum(batch32["num_probes"])
 
             train_timer.update(timeit.default_timer() - tstart)
+            print("finished training, now validating.")
 
-            # print(step, loss_value)
             # Validate and save model
             if (step % log_interval == 0) or ((step + 1) == args.max_steps):
                 tstart = timeit.default_timer()
-                #                with torch.no_grad():
-                #                    train_loss = (running_loss / running_loss_count).item()
-                #                    running_loss = running_loss_count = 0
-                train_loss = ops.div(running_loss, running_loss_count).item()
+                #with torch.no_grad():
+                #    train_loss = (running_loss / running_loss_count).item()
+                #    running_loss = running_loss_count = 0
+                train_loss = running_loss / running_loss_count
                 running_loss = 0
                 running_loss_count = 0
-                val_mae, val_rmse = eval_model(net, val_loader, device)
+                val_mae, val_rmse = eval_model(net, val_loader_list)
 
                 logging.info(
                     "step=%d, val_mae=%g, val_rmse=%g, sqrt(train_loss)=%g",
@@ -546,13 +522,7 @@ def main():
                     #     os.path.join(args.output_dir, "best_model.pth"),
                     # )
                     ms.train.serialization.save_checkpoint(
-                        {
-                            "model": net.parameters_dict(),
-                            "optimizer": optimizer.parameters_dict(),
-                            "scheduler": scheduler,
-                            "step": step,
-                            "best_val_mae": best_val_mae,
-                        },
+                        net,
                         os.path.join(args.output_dir, "best_model.ckpt"),
                     )
                 eval_timer.update(timeit.default_timer() - tstart)

@@ -582,14 +582,11 @@ class PainnProbeMessageModel(nn.Cell):
         **kwargs,
     ):
         # Unpad and concatenate edges and features into batch (0th) dimension
-        #print("===========DEBUG DENSITYMODEL CONSTRUCT=========")
-        #print(input_dict)
-        #print("===========DEBUG CONSTRUCT END==================")
         atom_xyz = layer.batch_dim_reduction(input_dict["atom_xyz"])
         edge_offset = ops.cumsum(
             ops.cat(
                 (
-                    ms.Tensor([0], dtype=ms.int32),  # device=input_dict["num_nodes"].device
+                    ms.Tensor([0], dtype=ms.int32), 
                     input_dict["num_nodes"][:-1],
                 )
             ),

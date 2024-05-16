@@ -98,7 +98,19 @@ def calc_distance_to_probe(
     splits: ms.Tensor,
     return_diff=False,
 ):
-    """Calculate distance of edges"""
+    """
+    Calculate distance of edges
+
+    Args:
+        positions: Tensor of shape (num_nodes, 3) with xyz coordinates inside cell
+        positions_probe: Tensor of shape (num_probes, 3) with xyz coordinates of probes inside cell
+        cells: Tensor of shape (num_splits, 3, 3) with one unit cell for each split
+        edges: Tensor of shape (num_edges, 2)
+        edges_displacement: Tensor of shape (num_edges, 3) with the offset (in number of cell vectors) of the sending node
+        splits: 1-dimensional tensor with the number of edges for each separate graph
+    """
+    if positions_probe.ndim > 2:
+        positions_probe = positions_probe[0]
     unitcell_repeat = ops.repeat_interleave(cells, splits, axis=0)  # num_edges, 3, 3
     displacement = ops.unsqueeze(edges_displacement, 1).matmul(unitcell_repeat)  # num_edges, 1, 3
     displacement = displacement.squeeze(axis=1)
@@ -109,6 +121,7 @@ def calc_distance_to_probe(
     dist = ops.sqrt(
         ops.sum(ops.square(diff), dim=1, keepdim=True)
     )  # num_edges, 1
+    print(dist)
 
     if return_diff:
         return dist, diff
@@ -438,19 +451,14 @@ class PaiNNInteractionOneWay(nn.Cell):
 
         return new_state_scalar, new_state_vector
 
-
+# 这里本来用的是itertools.zip_longest，但是"TypeError: <class 'NoneType'> object is not iterable in graph mode."
+# 我怀疑是因为zip_longest会填充none导致，因此改为itertools.zip，但实验发现好像不是这个问题
 def sinc_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
     """Expand each feature in a sinc-like basis function expansion."""
+
     feat_list = ops.unbind(input_x, dim=1)
     expanded_list = []
-    # 这里本来用的是itertools.zip_longest，但是"TypeError: <class 'NoneType'> object is not iterable in graph mode."
-    # 我怀疑是因为zip_longest会填充none导致，因此改为itertools.zip，但好像不是这个问题
-    #for step_tuple, feat in itertools.zip_longest(expand_params, feat_list):
     for step_tuple, feat in itertools.zip_longest(expand_params, feat_list):
-        print("===================REMARK SINC_EXPANSION==================")
-        print(step_tuple)
-        print(feat)
-        print("===================REMARK SINC END========================")
         assert feat is not None, "Too many expansion parameters given"
         if step_tuple:
             n, cutoff = step_tuple
