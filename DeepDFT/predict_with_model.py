@@ -44,8 +44,8 @@ def get_arguments(arg_list=None):
     parser.add_argument(
         "--mode",
         type=str,
-        default="PYNATIVE",
-        help="Set the operating mode for the inference model for inference e.g. 'GRAPH' or 'PYNATIVE'",
+        default="Pynative",
+        help="Set the operating mode for the inference model for inference e.g. 'Graph' or 'Pynative'",
     )
     parser.add_argument(
         "--ignore_pbc",
@@ -156,13 +156,13 @@ def main():
 
     device_target = args.device_target
     device_id = args.device_id
-    if args.mode == 'GRAPH':
+    if args.mode == 'Graph':
         compute_mode = ms.GRAPH_MODE
-    elif args.mode == 'PYNATIVE':
+    elif args.mode == 'Pynative':
         compute_mode = ms.PYNATIVE_MODE
     else:
         raise ValueError(
-            "Invalid value provided for the 'mode' parameter. Please specify either 'GRAPH' or 'PYNATIVE'.")
+            "Invalid value provided for the 'mode' parameter. Please specify either 'Graph' or 'Pynative'.")
 
     ms.set_context(device_target=device_target, device_id=device_id, mode=compute_mode)
 
@@ -265,6 +265,7 @@ def main():
             device_batch["num_probe_edges"] = probe_dict["num_probe_edges"].astype(ms.int32)
             device_batch["num_probes"] = probe_dict["num_probes"].astype(ms.int32)
 
+            epoch_start_time = timeit.default_timer()
             if isinstance(model, densitymodel.PainnDensityModel):
                 res = model.probe_model.construct_and_gradients(
                     device_batch, atom_representation_scalar, atom_representation_vector,
@@ -275,6 +276,7 @@ def main():
                     device_batch, atom_representation,
                     compute_iri=args.iri, compute_dori=args.dori, compute_hessian=args.hessian_eig
                 )
+            epoch_end_time = timeit.default_timer()
 
             if args.iri or args.dori or args.hessian_eig:
                 density, grad_outputs = res
@@ -293,7 +295,8 @@ def main():
                     writer.write(val.numpy().flatten())
 
             cubewriter.write(density.numpy().flatten())
-            logging.debug("Written %d/%d", cubewriter.numbers_written, np.prod(density_dict["grid_position"].shape[0:3]))
+            logging.debug("Written %d/%d, per_step_time=%f s", cubewriter.numbers_written,
+                          np.prod(density_dict["grid_position"].shape[0:3]), epoch_end_time - epoch_start_time)
 
     end_time = timeit.default_timer()
     logging.info("done time_elapsed=%f", end_time-start_time)

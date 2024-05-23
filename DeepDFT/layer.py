@@ -396,10 +396,18 @@ class PaiNNInteractionOneWay(nn.Cell):
         )
 
         # Sum messages
-        message_sum_scalar = ms.Parameter(ops.zeros_like(receiver_node_state_scalar))
-        message_sum_scalar = ops.index_add(message_sum_scalar, edges[:, 1], messages_scalar, 0)
-        message_sum_vector = ms.Parameter(ops.zeros_like(receiver_node_state_vector))
-        message_sum_vector = ops.index_add(message_sum_vector, edges[:, 1], messages_state_vector, 0)
+        message_sum_scalar = ops.zeros_like(receiver_node_state_scalar)
+        message_sum_scalar = ops.tensor_scatter_add(
+            message_sum_scalar,
+            ops.expand_dims(edges[:, 1], axis=1),
+            messages_scalar
+        )
+        message_sum_vector = ops.zeros_like(receiver_node_state_vector)
+        message_sum_vector = ops.tensor_scatter_add(
+            message_sum_vector,
+            ops.expand_dims(edges[:, 1], axis=1),
+            messages_state_vector
+        )
 
         # State transition
         update_gate_scalar, update_gate_vector = ops.split(
@@ -450,5 +458,5 @@ def cosine_cutoff(distance: ms.Tensor, cutoff: float):
     return ops.where(
         distance < cutoff,
         0.5 * (ops.cos(np.pi * distance / cutoff) + 1),
-        ms.Tensor(0.0, dtype=distance.dtype),
+        ms.Tensor(0.0, dtype=ms.float32),
     )
