@@ -21,7 +21,24 @@ from ase.calculators.vasp import VaspChargeDensity
 import asap3
 import mindspore as ms
 
+
 from layer import pad_and_stack
+
+# 这个函数也是用来调试的,用来查看数据结构
+def print_structure(var, indent=0):  
+    if isinstance(var, dict):  
+        print(' ' * indent + '{')  
+        for key in var:  
+            print(' ' * (indent + 2) + 'key:' + key, end=' ')  
+            print_structure(var[key], indent + 2)  
+        print(' ' * indent + '}')  
+    elif isinstance(var, list):  
+        print(' ' * indent + '[')  
+        for item in var:  
+            print_structure(item, indent + 2)  
+        print(' ' * indent + ']')  
+    else:  
+        print(' ' * indent + type(var).__name__)
 
 def _cell_heights(cell_object):
     volume = cell_object.volume
@@ -182,14 +199,11 @@ class DensityDataTar:
             for member in tar.getmembers():
                 self.member_list.append(member)
         self.key_to_idx = {str(k): i for i,k in enumerate(self.member_list)}
-        '''
-         ["<TarInfo '003999.CHGCAR.lz4' at 0x7fa3160cddc0>"] -> [ "<TarInfo '003999.CHGCAR.lz4' at 0x7fa3160cddc0>":0,...]
-        '''
 
     def __len__(self):
         return len(self.member_list)
 
-    def extract_member(self, tarinfo):# trainfo="<TarInfo '003999.CHGCAR.lz4' at 0x7fa3160cddc0>"
+    def extract_member(self, tarinfo):
         with tarfile.open(self.tarpath, "r") as tar:
             filecontent = _decompress_tarmember(tar, tarinfo)
             if tarinfo.name.endswith((".cube", ".cube.gz", "cube.zz", "cube.lz4")):
@@ -201,10 +215,10 @@ class DensityDataTar:
 
         metadata = {"filename": tarinfo.name}
         return {
-            "density": density, #numpy.ndarray float64
-            "atoms": atoms, #Atoms class e.g. Atoms(symbols='C4N2OH8', pbc=True, cell=[6.971137, 9.870693, 7.574937])
-            "origin": origin,#numpy.ndarray float64
-            "grid_position": grid_pos,#numpy.ndarray float64
+            "density": density,
+            "atoms": atoms,
+            "origin": origin,
+            "grid_position": grid_pos,
             "metadata": metadata, # Meta information
         }
 
@@ -298,8 +312,8 @@ class DensityGridIterator:
             "probe_edges": np.concatenate(probe_edges, axis=0),
             "probe_edges_displacement": np.concatenate(probe_edges_displacement, axis=0).astype(np.float32),
         }
-        res["num_probe_edges"] = np.array(res["probe_edges"].shape[0], dtype=np.int32)#-
-        res["num_probes"] = np.array(len(flat_index), dtype=np.int32) #-
+        res["num_probe_edges"] = res["probe_edges"].shape[0]
+        res["num_probes"] = len(flat_index)
         res["probe_xyz"] = probe_pos.astype(np.float32)
         return res
 
@@ -354,7 +368,7 @@ def atoms_and_probe_sample_to_graph_dict(density, atoms, grid_pos, cutoff, num_p
         probe_edges_displacement = [np.zeros((0,3), dtype=np.int)]
     # pylint: disable=E1102
     res = {
-        "nodes": ms.Tensor(atoms.get_atomic_numbers(), dtype=ms.int32),
+        "nodes": ms.Tensor(atoms.get_atomic_numbers()),
         "atom_edges": ms.Tensor(np.concatenate(atom_edges, axis=0)),
         "atom_edges_displacement": ms.Tensor(
             np.concatenate(atom_edges_displacement, axis=0), dtype=default_type
@@ -365,10 +379,10 @@ def atoms_and_probe_sample_to_graph_dict(density, atoms, grid_pos, cutoff, num_p
         ),
         "probe_target": ms.Tensor(probe_target, dtype=default_type),
     }
-    res["num_nodes"] = ms.Tensor(res["nodes"].shape[0], dtype=ms.int32)
-    res["num_atom_edges"] = ms.Tensor(res["atom_edges"].shape[0], dtype=ms.int32)
-    res["num_probe_edges"] = ms.Tensor(res["probe_edges"].shape[0], dtype=ms.int32)
-    res["num_probes"] = ms.Tensor(res["probe_target"].shape[0], dtype=ms.int32)
+    res["num_nodes"] = ms.Tensor(res["nodes"].shape[0])
+    res["num_atom_edges"] = ms.Tensor(res["atom_edges"].shape[0])
+    res["num_probe_edges"] = ms.Tensor(res["probe_edges"].shape[0])
+    res["num_probes"] = ms.Tensor(res["probe_target"].shape[0])
     res["probe_xyz"] = ms.Tensor(probe_pos, dtype=default_type)
     res["atom_xyz"] = ms.Tensor(atoms.get_positions(), dtype=default_type)
     res["cell"] = ms.Tensor(np.array(atoms.get_cell()), dtype=default_type)
@@ -383,14 +397,14 @@ def atoms_to_graph_dict(atoms, cutoff):
 
     # pylint: disable=E1102
     res = {
-        "nodes": ms.Tensor(atoms.get_atomic_numbers(), dtype=ms.int32),
+        "nodes": ms.Tensor(atoms.get_atomic_numbers()),
         "atom_edges": ms.Tensor(np.concatenate(atom_edges, axis=0)),
         "atom_edges_displacement": ms.Tensor(
             np.concatenate(atom_edges_displacement, axis=0), dtype=default_type
         ),
     }
-    res["num_nodes"] = ms.Tensor(res["nodes"].shape[0], dtype=ms.int32)
-    res["num_atom_edges"] = ms.Tensor(res["atom_edges"].shape[0], dtype=ms.int32)
+    res["num_nodes"] = ms.Tensor(res["nodes"].shape[0])
+    res["num_atom_edges"] = ms.Tensor(res["atom_edges"].shape[0])
     res["atom_xyz"] = ms.Tensor(atoms.get_positions(), dtype=default_type)
     res["cell"] = ms.Tensor(np.array(atoms.get_cell()), dtype=default_type)
 

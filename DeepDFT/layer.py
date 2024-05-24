@@ -121,7 +121,6 @@ def calc_distance_to_probe(
     dist = ops.sqrt(
         ops.sum(ops.square(diff), dim=1, keepdim=True)
     )  # num_edges, 1
-    print(dist)
 
     if return_diff:
         return dist, diff
