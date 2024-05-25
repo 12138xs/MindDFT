@@ -14,11 +14,12 @@ import mindspore.ops as ops
 import mindspore.common.dtype as mstype 
 
 from dft_utils.parser import *
-from dft_utils import debuger
+from dft_utils import debuger, checkpoint
 from dft_utils.dataset_utils import *
 from dft_utils.train_utils import *
 
-import densitymodel
+
+from GraphMode import densitymodel
 import dataset
 
 # TODO 1.重写dataset 2.避免nan 3.提升eval速度 4.Checkpoint
@@ -130,7 +131,7 @@ def main():
 
     train_loader = ms.dataset.GeneratorDataset(
         source=datasplits["train"],
-        num_parallel_workers=4,
+        num_parallel_workers=2,
         column_names=["train"],
         sampler = ms.dataset.RandomSampler()
     )
@@ -140,7 +141,7 @@ def main():
 
     val_loader = ms.dataset.GeneratorDataset(
         source=datasplits["validation"],
-        num_parallel_workers=4,
+        num_parallel_workers=2,
         column_names=["validations"],
         sampler=ms.dataset.RandomSampler()
     )
@@ -152,10 +153,6 @@ def main():
 # ===========================================================================================
 # model relate
 
-    ### 这里使用静态图，CPU
-    #ms.context.set_context(mode=ms.context.GRAPH_MODE, device_target='CPU')
-    # 后面静态图跑不通，这里先用动态图试试
-    #ms.context.set_context(mode=ms.context.PYNATIVE_MODE, device_target=args.device)
 
     ms.context.set_context(mode=ms.context.PYNATIVE_MODE, device_target=args.device)
     if args.use_painn_model:
@@ -166,9 +163,9 @@ def main():
     logging.debug("model has %d parameters", count_parameters(net))
 
     # Setup optimizer
-    schedulelr = nn.learning_rate_schedule.ExponentialDecayLR(learning_rate=1.0, decay_rate=0.96, decay_steps=100000)
+    scheduler = nn.learning_rate_schedule.ExponentialDecayLR(learning_rate=1.0, decay_rate=0.96, decay_steps=100000)
     # learning_rate 或可改为0.0001
-    optimizer = nn.Adam(net.trainable_params(), learning_rate=schedulelr)
+    optimizer = nn.Adam(net.trainable_params(), learning_rate=scheduler)
     criterion = nn.MSELoss()
 
     loss_net = nn.WithLossCell(net, criterion)
@@ -185,19 +182,11 @@ def main():
     best_val_mae = np.inf
     step = 0
 
-    # Restore checkpoint
-    #    if args.load_model:
-    #        state_dict = torch.load(args.load_model)
-    #        net.load_state_dict(state_dict["model"])
-    #        step = state_dict["step"]
-    #        best_val_mae = state_dict["best_val_mae"]
-    #        optimizer.load_state_dict(state_dict["optimizer"])
-    #        scheduler.load_state_dict(state_dict["scheduler"])
-    # 这里使用ms自带的check_point
-
+    # load checkpoint
     if args.load_model:
-        param_dict = ms.load_checkpoint(args.load_model)
-        ms.load_param_into_net(net, param_dict)
+        state_dict = checkpoint.load_checkpoint(args.load_model, net=net, optimizer=optimizer)
+        step = state_dict["extra_info"]["step"]
+        best_val_mae = state_dict["extra_info"]["best_val_mae"]
 
     logging.info("start training")
 
@@ -208,9 +197,8 @@ def main():
 
     endtime = timeit.default_timer()
 
-    for _ in itertools.count(): #这个死循环非常幽默
+    for _ in itertools.count(): 
         for batch in train_loader:
-            #batch32 = convert_batch_int32(batch[0])
             batch = batch[0]
             data_timer.update(timeit.default_timer() - endtime)
             tstart = timeit.default_timer()
@@ -241,11 +229,18 @@ def main():
                 )
 
                 # Save checkpoint
-                if val_mae < best_val_mae:
-                    ms.train.save_checkpoint(net, os.path.join(args.output_dir, "best_model.ckpt"))
+                if True:#val_mae < best_val_mae:
+                    debuger.debug_devideline("Save")
+                    checkpoint.save_checkpoint(os.path.join(args.output_dir, "best_model"), 
+                                               net=net, 
+                                               optimizer=optimizer,
+                                               step=step,
+                                               best_val_mae=best_val_mae)
+
                 eval_timer.update(timeit.default_timer() - tstart)
                 logging.debug(f"data_time={data_timer}, transfer_time={transfer_timer}, train_time={train_timer}, eval_time={eval_timer}")
-            step += 1
+            step +=1
+            
 
             if step >= args.max_steps:
                 logging.info("Max steps reached, exiting")
