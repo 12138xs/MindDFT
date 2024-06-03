@@ -42,6 +42,12 @@ def get_arguments(arg_list=None):
         help="Specify the device number to be used for inference e.g. '0' or '1'",
     )
     parser.add_argument(
+        "--mode",
+        type=str,
+        default="Pynative",
+        help="Set the operating mode for the inference model for inference e.g. 'Graph' or 'Pynative'",
+    )
+    parser.add_argument(
         "--ignore_pbc",
         action="store_true",
         help="If flag is given, disable periodic boundary conditions (force to False) in atoms data",
@@ -148,6 +154,18 @@ def load_molecule(atoms, grid_step, vacuum):
 def main():
     args = get_arguments()
 
+    device_target = args.device_target
+    device_id = args.device_id
+    if args.mode == 'Graph':
+        compute_mode = ms.GRAPH_MODE
+    elif args.mode == 'Pynative':
+        compute_mode = ms.PYNATIVE_MODE
+    else:
+        raise ValueError(
+            "Invalid value provided for the 'mode' parameter. Please specify either 'Graph' or 'Pynative'.")
+
+    ms.set_context(device_target=device_target, device_id=device_id, mode=compute_mode)
+
     # Setup logging
     os.makedirs(args.output_dir, exist_ok=True)
     logging.basicConfig(
@@ -164,10 +182,6 @@ def main():
     model, cutoff = load_model(args.model_dir)
 
     density_dict = load_atoms(args.atoms_file, args.vacuum, args.grid_step)
-
-    device_target = args.device_target
-    device_id = args.device_id
-    ms.set_context(device_target=device_target, device_id=device_id)
 
     cubewriter = utils.CubeWriter(
         os.path.join(args.output_dir, "prediction.cube"),
@@ -251,6 +265,7 @@ def main():
             device_batch["num_probe_edges"] = probe_dict["num_probe_edges"].astype(ms.int32)
             device_batch["num_probes"] = probe_dict["num_probes"].astype(ms.int32)
 
+            epoch_start_time = timeit.default_timer()
             if isinstance(model, densitymodel.PainnDensityModel):
                 res = model.probe_model.construct_and_gradients(
                     device_batch, atom_representation_scalar, atom_representation_vector,
@@ -261,6 +276,7 @@ def main():
                     device_batch, atom_representation,
                     compute_iri=args.iri, compute_dori=args.dori, compute_hessian=args.hessian_eig
                 )
+            epoch_end_time = timeit.default_timer()
 
             if args.iri or args.dori or args.hessian_eig:
                 density, grad_outputs = res
@@ -279,7 +295,8 @@ def main():
                     writer.write(val.numpy().flatten())
 
             cubewriter.write(density.numpy().flatten())
-            logging.debug("Written %d/%d", cubewriter.numbers_written, np.prod(density_dict["grid_position"].shape[0:3]))
+            logging.debug("Written %d/%d, per_step_time=%f s", cubewriter.numbers_written,
+                          np.prod(density_dict["grid_position"].shape[0:3]), epoch_end_time - epoch_start_time)
 
     end_time = timeit.default_timer()
     logging.info("done time_elapsed=%f", end_time-start_time)
