@@ -7,11 +7,10 @@ from mindspore import nn, ops
 
 def pad_and_stack(tensors: List[ms.Tensor]):
     """Pad list of tensors if tensors are arrays and stack if they are scalars"""
-    if tensors[0].shape:
+    if tensors[0].shape and tensors[0].shape[0]:
         max_len = max(tensor.shape[0] for tensor in tensors)
         padded_tensors = [ops.pad(tensor, [0, max_len - tensor.shape[0]], value=0) for tensor in tensors]
         return ops.Stack(axis=0)(padded_tensors)
-
     return ops.Stack(axis=0)(tensors)
 
 
@@ -35,7 +34,10 @@ def unpad_and_cat(stacked_seq: ms.Tensor, seq_len: ms.Tensor):
 
 def batch_dim_reduction(stacked_seq: ms.Tensor):
     """Unpad and concatenate by removing batch dimension, Used in GRAPH mode"""
-    return ops.reshape(stacked_seq, stacked_seq.shape[1:])
+    if not stacked_seq.shape[1]:
+        return ops.zeros(stacked_seq.shape[1:])
+    else:
+        return ops.reshape(stacked_seq, stacked_seq.shape[1:])
 
 
 def sum_splits(values: ms.Tensor, splits: ms.Tensor):
@@ -85,16 +87,20 @@ def calc_distance_to_probe(
     return_diff=False,
 ):
     """Calculate distance of edges"""
-    unitcell_repeat = ops.repeat_interleave(cells, splits, axis=0)  # num_edges, 3, 3
-    displacement = ops.unsqueeze(edges_displacement, 1).matmul(unitcell_repeat)  # num_edges, 1, 3
-    displacement = displacement.squeeze(axis=1)
-    neigh_pos = positions[edges[:, 0]]  # num_edges, 3
-    neigh_abs_pos = neigh_pos + displacement  # num_edges, 3
-    this_pos = positions_probe[edges[:, 1]]  # num_edges, 3
-    diff = this_pos - neigh_abs_pos  # num_edges, 3
-    dist = ops.sqrt(
-        ops.sum(ops.square(diff), dim=1, keepdim=True)
-    )  # num_edges, 1
+    if splits[0]:
+        unitcell_repeat = ops.repeat_interleave(cells, splits, axis=0)  # num_edges, 3, 3
+        displacement = ops.unsqueeze(edges_displacement, 1).matmul(unitcell_repeat)  # num_edges, 1, 3
+        displacement = displacement.squeeze(axis=1)
+        neigh_pos = positions[edges[:, 0]]  # num_edges, 3
+        neigh_abs_pos = neigh_pos + displacement  # num_edges, 3
+        this_pos = positions_probe[edges[:, 1]]  # 边的当前节点 num_edges, 3
+        diff = this_pos - neigh_abs_pos  # num_edges, 3
+        dist = ops.sqrt(
+            ops.sum(ops.square(diff), dim=1, keepdim=True)
+        )  # num_edges, 1
+    else:
+        diff = ops.zeros((0, 3))
+        dist = ops.zeros((0, 1))
 
     if return_diff:
         return dist, diff
@@ -105,28 +111,34 @@ def calc_distance_to_probe(
 def gaussian_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
     """将输入张量中的每个特征按照一组高斯基函数进行扩展。
     expand_params是一个长度为input_x.shape[1]的列表"""
-    feat_list = ops.unbind(input_x, dim=1)
-    expanded_list = []
+    if input_x.shape[0]:
+        feat_list = ops.unbind(input_x, dim=1)
+        expanded_list = []
 
-    # 确保expand_params和feat_list具有相同的长度
-    min_length = min(len(expand_params), len(feat_list))
-    assert min_length <= len(feat_list), "提供了过多的扩展参数"
-    for i in range(min_length):
-        step_tuple = expand_params[i]
-        feat = feat_list[i]
+        # 确保expand_params和feat_list具有相同的长度
+        min_length = min(len(expand_params), len(feat_list))
+        assert min_length <= len(feat_list), "提供了过多的扩展参数"
+        for i in range(min_length):
+            step_tuple = expand_params[i]
+            feat = feat_list[i]
+            start, step, stop = step_tuple
+            feat_expanded = ops.unsqueeze(feat, dim=1)
+            sigma = step
+            basis_mu = ops.arange(start, stop, step, dtype=input_x.dtype)
+            expanded_list.append(
+                ops.exp(-((feat_expanded - basis_mu) ** 2) / (2.0 * sigma ** 2))
+            )
+
+        # 如果feat_list的长度大于expand_params的长度，处理剩余的feat_list
+        for feat in feat_list[min_length:]:
+            expanded_list.append(ops.unsqueeze(feat, 1))
+
+        return ops.cat(expanded_list, axis=1)
+
+    else:
+        step_tuple = expand_params[0]
         start, step, stop = step_tuple
-        feat_expanded = ops.unsqueeze(feat, dim=1)
-        sigma = step
-        basis_mu = ops.arange(start, stop, step, dtype=input_x.dtype)
-        expanded_list.append(
-            ops.exp(-((feat_expanded - basis_mu) ** 2) / (2.0 * sigma ** 2))
-        )
-
-    # 如果feat_list的长度大于expand_params的长度，处理剩余的feat_list
-    for feat in feat_list[min_length:]:
-        expanded_list.append(ops.unsqueeze(feat, 1))
-
-    return ops.cat(expanded_list, axis=1)
+        return ops.zeros((0, int((stop - start) / step)))
 
 
 class SchnetMessageFunction(nn.Cell):
@@ -197,25 +209,32 @@ class MessageSum(nn.Cell):
 
     def construct(self, node_state, edges, edge_state, edges_distance, receiver_nodes=None):
         # Compute all messages
-        if self.include_receiver:
-            if receiver_nodes is not None:
-                senders = node_state[edges[:, 0]]
-                receivers = receiver_nodes[edges[:, 1]]
-                nodes = ops.cat((senders, receivers), axis=1)
+        if edges.shape[0]:
+            if self.include_receiver:
+                if receiver_nodes is not None:
+                    senders = node_state[edges[:, 0]]
+                    receivers = receiver_nodes[edges[:, 1]]
+                    nodes = ops.cat((senders, receivers), axis=1)
+                else:
+                    num_edges = edges.shape[0]
+                    nodes = ops.reshape(node_state[edges], (num_edges, -1))
             else:
-                num_edges = edges.shape[0]
-                nodes = ops.reshape(ops.gather(node_state, edges, 0), [num_edges, -1])
-        else:
-            nodes = node_state[edges[:, 0]]  # Only include sender in messages
-        messages = self.message_function(nodes, edge_state, edges_distance)
+                nodes = node_state[edges[:, 0]]  # Only include sender in messages
+            messages = self.message_function(nodes, edge_state, edges_distance)
 
-        # Sum messages
-        if receiver_nodes is not None:
-            message_sum = ops.zeros_like(receiver_nodes)
-        else:
-            message_sum = ops.zeros_like(node_state)
+            # Sum messages
+            if receiver_nodes is not None:
+                message_sum = ops.zeros_like(receiver_nodes)
+            else:
+                message_sum = ops.zeros_like(node_state)
 
-        message_sum = ops.tensor_scatter_add(message_sum, ops.expand_dims(edges[:, 1], axis=1), messages)
+            message_sum = ops.tensor_scatter_add(message_sum, ops.expand_dims(edges[:, 1], axis=1), messages)
+
+        else:
+            if receiver_nodes is not None:
+                message_sum = ops.zeros_like(receiver_nodes)
+            else:
+                message_sum = ops.zeros_like(node_state)
         return message_sum
 
 
@@ -362,52 +381,56 @@ class PaiNNInteractionOneWay(nn.Cell):
         edges,
     ):
         # Compute all messages
-        edge_vector_normalised = edge_vector / ops.maximum(
-            # ops.norm(edge_vector, dim=1, keepdim=True), ms.Tensor(1e-12)
-            ops.LpNorm(axis=1, keep_dims=True)(edge_vector), ms.Tensor(1e-12)
-        )  # num_edges, 3
+        if edge_state.shape[0]:
+            edge_vector_normalised = edge_vector / ops.maximum(
+                # ops.norm(edge_vector, dim=1, keepdim=True), ms.Tensor(1e-12)
+                ops.LpNorm(axis=1, keep_dims=True)(edge_vector), ms.Tensor(1e-12)
+            )  # num_edges, 3
 
-        filter_weight = self.filter_layer(edge_state)  # num_edges, 3*node_size
-        filter_weight = filter_weight * cosine_cutoff(edge_distance, self.cutoff)
+            filter_weight = self.filter_layer(edge_state)  # num_edges, 3*node_size
+            filter_weight = filter_weight * cosine_cutoff(edge_distance, self.cutoff)
 
-        scalar_output = self.scalar_message_mlp(
-            sender_node_state_scalar
-        )  # num_nodes, 3*node_size
-        scalar_output = scalar_output[edges[:, 0]]  # num_edges, 3*node_size
-        filter_output = filter_weight * scalar_output  # num_edges, 3*node_size
+            scalar_output = self.scalar_message_mlp(
+                sender_node_state_scalar
+            )  # num_nodes, 3*node_size
+            scalar_output = scalar_output[edges[:, 0]]  # num_edges, 3*node_size
+            filter_output = filter_weight * scalar_output  # num_edges, 3*node_size
 
-        gate_state_vector, gate_edge_vector, gate_node_state = ops.split(
-            filter_output, sender_node_state_scalar.shape[1], axis=1
-        )
+            gate_state_vector, gate_edge_vector, gate_node_state = ops.split(
+                filter_output, sender_node_state_scalar.shape[1], axis=1
+            )
 
-        gate_state_vector = ops.unsqueeze(
-            gate_state_vector, dim=1
-        )  # num_edges, 1, node_size
-        gate_edge_vector = ops.unsqueeze(
-            gate_edge_vector, dim=1
-        )  # num_edges, 1, node_size
+            gate_state_vector = ops.unsqueeze(
+                gate_state_vector, dim=1
+            )  # num_edges, 1, node_size
+            gate_edge_vector = ops.unsqueeze(
+                gate_edge_vector, dim=1
+            )  # num_edges, 1, node_size
 
-        # Only include sender in messages
-        messages_scalar = sender_node_state_scalar[edges[:, 0]] * gate_node_state
-        messages_state_vector = sender_node_state_vector[
-            edges[:, 0]
-        ] * gate_state_vector + gate_edge_vector * ops.unsqueeze(
-            edge_vector_normalised, dim=2
-        )
+            # Only include sender in messages
+            messages_scalar = sender_node_state_scalar[edges[:, 0]] * gate_node_state
+            messages_state_vector = sender_node_state_vector[
+                edges[:, 0]
+            ] * gate_state_vector + gate_edge_vector * ops.unsqueeze(
+                edge_vector_normalised, dim=2
+            )
 
-        # Sum messages
-        message_sum_scalar = ops.zeros_like(receiver_node_state_scalar)
-        message_sum_scalar = ops.tensor_scatter_add(
-            message_sum_scalar,
-            ops.expand_dims(edges[:, 1], axis=1),
-            messages_scalar
-        )
-        message_sum_vector = ops.zeros_like(receiver_node_state_vector)
-        message_sum_vector = ops.tensor_scatter_add(
-            message_sum_vector,
-            ops.expand_dims(edges[:, 1], axis=1),
-            messages_state_vector
-        )
+            # Sum messages
+            message_sum_scalar = ops.zeros_like(receiver_node_state_scalar)
+            message_sum_scalar = ops.tensor_scatter_add(
+                message_sum_scalar,
+                ops.expand_dims(edges[:, 1], axis=1),
+                messages_scalar
+            )
+            message_sum_vector = ops.zeros_like(receiver_node_state_vector)
+            message_sum_vector = ops.tensor_scatter_add(
+                message_sum_vector,
+                ops.expand_dims(edges[:, 1], axis=1),
+                messages_state_vector
+            )
+        else:
+            message_sum_scalar = ops.zeros_like(receiver_node_state_scalar)
+            message_sum_vector = ops.zeros_like(receiver_node_state_vector)
 
         # State transition
         update_gate_scalar, update_gate_vector = ops.split(
@@ -432,25 +455,32 @@ class PaiNNInteractionOneWay(nn.Cell):
 
 def sinc_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
     """Expand each feature in a sinc-like basis function expansion."""
-    feat_list = ops.unbind(input_x, dim=1)
-    expanded_list = []
-    # 确保expand_params和feat_list具有相同的长度
-    min_length = min(len(expand_params), len(feat_list))
-    for i in range(min_length):
-        step_tuple = expand_params[i]
-        feat = feat_list[i]
-        assert feat is not None, "Too many expansion parameters given"
-        n, cutoff = step_tuple
-        feat_expanded = ops.unsqueeze(feat, dim=1)
-        n_range = ops.arange(n, dtype=input_x.dtype) + 1
-        # multiplication by pi n_range / cutoff is done in original painn for some reason
-        out = ops.sinc(n_range/cutoff*feat_expanded)*np.pi*n_range/cutoff
-        expanded_list.append(out)
+    if input_x.shape[0]:
+        feat_list = ops.unbind(input_x, dim=1)
+        expanded_list = []
+        # 确保expand_params和feat_list具有相同的长度
+        min_length = min(len(expand_params), len(feat_list))
+        for i in range(min_length):
+            step_tuple = expand_params[i]
+            feat = feat_list[i]
+            assert feat is not None, "Too many expansion parameters given"
+            n, cutoff = step_tuple
+            feat_expanded = ops.unsqueeze(feat, dim=1)
+            n_range = ops.arange(n, dtype=input_x.dtype) + 1
+            # multiplication by pi n_range / cutoff is done in original painn for some reason
+            out = ops.sinc(n_range/cutoff*feat_expanded)*np.pi*n_range/cutoff
+            expanded_list.append(out)
 
-    # 如果feat_list的长度大于expand_params的长度，处理剩余的feat_list
-    for feat in feat_list[min_length:]:
-        expanded_list.append(ops.unsqueeze(feat, 1))
-    return ops.cat(expanded_list, axis=1)
+        # 如果feat_list的长度大于expand_params的长度，处理剩余的feat_list
+        for feat in feat_list[min_length:]:
+            expanded_list.append(ops.unsqueeze(feat, 1))
+
+        return ops.cat(expanded_list, axis=1)
+
+    else:
+        step_tuple = expand_params[0]
+        n, _ = step_tuple
+        return ops.zeros((0, n))
 
 
 def cosine_cutoff(distance: ms.Tensor, cutoff: float):

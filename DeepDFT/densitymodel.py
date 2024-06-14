@@ -235,7 +235,8 @@ class ProbeMessageModel(nn.Cell):
         )
         edge_probe_offset = edge_probe_offset[:, None, None]
         edge_probe_offset = ops.cat((edge_offset, edge_probe_offset), axis=2)
-        probe_edges = input_dict["probe_edges"] + edge_probe_offset
+        probe_edges = input_dict["probe_edges"]
+        probe_edges = probe_edges + edge_probe_offset if probe_edges.shape[1] else probe_edges
         probe_edges = layer.batch_dim_reduction(probe_edges)
 
         # Compute edge distances
@@ -575,14 +576,14 @@ class PainnProbeMessageModel(nn.Cell):
 
     def construct(
         self,
-        probe_xyz: ms.Tensor, /,
+        probe_xyz_: ms.Tensor,
         atom_representation_scalar: List[ms.Tensor],
         atom_representation_vector: List[ms.Tensor],
         **input_dict
     ):
         # Unpad and concatenate edges and features into batch (0th) dimension
         atom_xyz = layer.batch_dim_reduction(input_dict["atom_xyz"])
-        probe_xyz = layer.batch_dim_reduction(probe_xyz)
+        probe_xyz = layer.batch_dim_reduction(probe_xyz_)
         edge_offset = ops.cumsum(
             ops.cat(
                 (
@@ -609,7 +610,8 @@ class PainnProbeMessageModel(nn.Cell):
         )
         edge_probe_offset = edge_probe_offset[:, None, None]
         edge_probe_offset = ops.cat((edge_offset, edge_probe_offset), axis=2)
-        probe_edges = input_dict["probe_edges"] + edge_probe_offset
+        probe_edges = input_dict["probe_edges"]
+        probe_edges = probe_edges + edge_probe_offset if probe_edges.shape[1] else probe_edges
         probe_edges = layer.batch_dim_reduction(probe_edges)
 
         # Compute edge distances

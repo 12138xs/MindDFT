@@ -39,6 +39,12 @@ def get_arguments(arg_list=None):
         help="Specify the device number to be used for inference e.g. '0' or '1'",
     )
     parser.add_argument(
+        "--mode",
+        type=str,
+        default="Pynative",
+        help="Set the operating mode for the inference model for inference e.g. 'Graph' or 'Pynative'",
+    )
+    parser.add_argument(
         "--ignore_pbc",
         action="store_true",
         help="If flag is given, ignore periodic boundary conditions in atoms data",
@@ -56,6 +62,8 @@ def batch_map_fn(data):
     for key, value in data[0].items():
         if isinstance(value, ms.Tensor):
             batch_data[key] = value.asnumpy()
+        elif isinstance(value, dict):
+            batch_data[key] = {"filename": str(value["filename"])}
         else:
             batch_data[key] = value
     return batch_data
@@ -80,7 +88,15 @@ def main():
 
     device_target = args.device_target
     device_id = args.device_id
-    ms.set_context(device_target=device_target, device_id=device_id)
+    if args.mode == 'Graph':
+        compute_mode = ms.GRAPH_MODE
+    elif args.mode == 'Pynative':
+        compute_mode = ms.PYNATIVE_MODE
+    else:
+        raise ValueError(
+            "Invalid value provided for the 'mode' parameter. Please specify either 'Graph' or 'Pynative'.")
+
+    ms.set_context(device_target=device_target, device_id=device_id, mode=compute_mode)
 
     # Initialise model and load model
     if args.use_painn_model:
@@ -100,9 +116,12 @@ def main():
     else:
         filelist = [args.dataset]
     logging.info("loading data %s", args.dataset)
-    # densitydata = ms.dataset.ConcatDataset([ms.dataset.GeneratorDataset(dataset.DensityData(path), column_names=["densitydata"]) for path in filelist])
-    densitydata = ms.dataset.GeneratorDataset(dataset.DensityData(filelist[0]), column_names=["densitydata"], shuffle=False)
-    # densitydata = dataset.DensityData(filelist[0])
+    densitydata = []
+    for path in filelist:
+        if not densitydata:
+            densitydata = dataset.DensityData(path)
+        else:
+            densitydata.concat(dataset.DensityData(path))
 
     # Split data into train and validation sets
     if args.split_file:
@@ -114,7 +133,12 @@ def main():
         if args.split and split_name not in args.split:
             continue
 
-        dataloader = densitydataset.batch(batch_size=1, num_parallel_workers=4)
+        dataloader = ms.dataset.GeneratorDataset(
+            densitydataset,
+            column_names=split_name,
+            shuffle=False
+        )
+        dataloader = dataloader.batch(batch_size=1, num_parallel_workers=4)
 
         if args.write_error_cubes:
             outname = os.path.join(args.output_dir, "eval_" + split_name + ".tar")
@@ -172,7 +196,7 @@ def main():
                 sum_target += ops.sum(probe_target)
 
                 if args.write_error_cubes:
-                    density.append(res.detach().cpu().numpy())
+                    density.append(res.numpy())
 
             voxel_volume = density_dict["atoms"].get_volume()/np.prod(density_dict["density"].shape)
             rmse = ops.sqrt((sum_squared_error/num_positions))
