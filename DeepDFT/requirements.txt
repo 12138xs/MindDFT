@@ -1,4 +1,5 @@
 numpy
 asap3
 ase
+lz4
 torch

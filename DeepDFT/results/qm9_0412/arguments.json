@@ -1,0 +1,1 @@
+{"load_model": null, "cutoff": 4.0, "split_file": "./data/qm9/datasplits_test.json", "num_interactions": 6, "node_size": 128, "output_dir": "./results/qm9_0412", "dataset": "./data/qm9/qm9vasp_test.txt", "max_steps": 100000000, "device": "cuda", "use_painn_model": true, "ignore_pbc": false, "force_pbc": false}

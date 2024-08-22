@@ -21,20 +21,9 @@ from dft_utils import debuger
 from dft_utils.dataset_utils import *
 from dft_utils.train_utils import *
 
-import densitymodel
+from gm import densitymodel
 import dataset
-
-
-
-# 用于将list(train_loader)转化成单层列表
-def flatten(lst):  
-    result = []  
-    for i in lst:  
-        if isinstance(i, list):  
-            result.extend(flatten(i))  
-        else:  
-            result.append(i)  
-    return result
+ 
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -108,8 +97,6 @@ def get_normalization(dataset, per_atom=True):
 # def count_parameters(model):
 #    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-
-#carzit:哥们你这。。。
 def count_parameters(model):   
     total_params = 0  
     for _, param in model.parameters_and_names():  
@@ -120,7 +107,6 @@ def count_parameters(model):
             # 否则，使用numel()方法来计算张量中的元素个数  
             total_params += param.data.size.numel()  
     return total_params 
-
 
 
 def main():
@@ -164,64 +150,23 @@ def main():
     else:
         set_pbc = None
 
-    # Setup loaders
-    #  train_loader = torch.utils.data.DataLoader(
-    #      datasplits["train"],
-    #      2,
-    #      num_workers=4,
-    #      sampler=torch.utils.data.RandomSampler(datasplits["train"]),
-    #      collate_fn=dataset.CollateFuncRandomSample(args.cutoff, 1000, pin_memory=False, set_pbc_to=set_pbc),
-    #  )
-
-    # 1、 312 2、for 可迭代
-    #column_names = ["data", "label"]
-    #问题出在datasplits好像并不是完全一样的，所以这里试图对datasplits做一个清洗
-    #print("===================Wash datasplits===================")
-    #print_structure(datasplits["train"][0])
-    #counter_splits = 0
-    #for single_data in datasplits["train"]:
-    #    print_structure(single_data)
-    #    if structure(single_data)!=structure(datasplits["train"][0]):
-    #        counter_splits+=1
-    #print(counter_splits, " different data in total!") 
-    #print("=====================================================")
-    #结论：datasplits["train"]没有问题，完全是一样的。
-
-    #实验发现：改变batch_size（2->1）会让程序一下子跑不动，不知道是什么原因
-    
-
     train_loader = ms.dataset.GeneratorDataset(
         source=datasplits["train"],
         num_parallel_workers=4,
         column_names=["train"],
         sampler = ms.dataset.RandomSampler()
     )
-
-    train_loader = train_loader.map(operations=dataset.CollateFuncRandomSample(args.cutoff, 1000, set_pbc_to=set_pbc),
-                                    input_columns=["train"])
-    
+    train_loader = train_loader.map(operations=dataset.CollateFuncRandomSample(args.cutoff, 1000, set_pbc_to=set_pbc),input_columns=["train"]) 
     train_loader = train_loader.batch(batch_size=1, drop_remainder=True)
-    
     train_loader = train_loader.repeat(count=2)
 
-    # 结论：train_loader就是不可迭代的 --Carzit：我不这么认为
-    # 4/10 train_loader可以通过list(train_loader)转换成可迭代的，但是我已转换就会报错说长度不匹配。
-
-    # val_loader = torch.utils.data.DataLoader(
-    #    datasplits["validation"],
-    #    2,
-    #    collate_fn=dataset.CollateFuncRandomSample(args.cutoff, 5000, pin_memory=False, set_pbc_to=set_pbc),
-    #    num_workers=0,
-    # )
-    # logging.info("Preloading validation batch")
     val_loader = ms.dataset.GeneratorDataset(
         datasplits["validation"],
         num_parallel_workers=4,
         column_names=["validations"],
         sampler=ms.dataset.RandomSampler()
     )
-    val_loader = val_loader.map(operations=dataset.CollateFuncRandomSample(args.cutoff, 5000, set_pbc_to=set_pbc),
-                                input_columns=["validations"])
+    val_loader = val_loader.map(operations=dataset.CollateFuncRandomSample(args.cutoff, 5000, set_pbc_to=set_pbc), input_columns=["validations"])
     val_loader = val_loader.batch(batch_size=1, drop_remainder=True)
 
     logging.info("Preloading validation batch")
@@ -229,32 +174,27 @@ def main():
 # ===========================================================================================
 # model relate
 
-    # Initialise model
-    # device = torch.device(args.device)
-
-    ### 这里使用静态图，CPU
+    ### 这里使用静态图,CPU
     #ms.context.set_context(mode=ms.context.GRAPH_MODE, device_target='CPU')
     # 后面静态图跑不通，这里先用动态图试试
-    ms.context.set_context(mode=ms.context.PYNATIVE_MODE, device_target=args.device)
+    #ms.context.set_context(mode=ms.context.PYNATIVE_MODE, device_target=args.device)
+
+    ms.context.set_context(mode=ms.context.GRAPH_MODE, device_target=args.device)
     if args.use_painn_model:
         net = densitymodel.PainnDensityModel(args.num_interactions, args.node_size, args.cutoff)
     else:
         net = densitymodel.DensityModel(args.num_interactions, args.node_size, args.cutoff)
 
-    debuger.debug_check_var(net.trainable_params, "tp")
-    sys.exit(0)
-
-    logging.debug(f"model has {count_parameters(net)} parameters")
+    logging.debug("model has %d parameters", count_parameters(net))
 
     # Setup optimizer
-    optimizer = nn.Adam(net.trainable_params(), learning_rate=0.0001)
+    schedulelr = nn.learning_rate_schedule.ExponentialDecayLR(learning_rate=1.0, decay_rate=0.96, decay_steps=100000)
+    # learning_rate 或可改为0.0001
+    optimizer = nn.Adam(net.trainable_params(), learning_rate=schedulelr)
     criterion = nn.MSELoss()
 
-    loss_net = nn.WithLossCell(net, criterion)
+    loss_net = CustomWithLossCell(net, criterion)
     train_net = nn.TrainOneStepCell(loss_net, optimizer)
-    # scheduler = ms.train.callback.LearningRateScheduler(scheduler_fn)
-    scheduler = ms.train.callback.LearningRateScheduler(lambda step: 0.001 * 0.96 ** (step / 100000)) # ms会自动更新scheduler,不需要手动更新。
-
 
 # ================================================================================================
 # train
@@ -264,15 +204,7 @@ def main():
     running_loss_count = ms.tensor(0)
     best_val_mae = np.inf
     step = 0
-    # Restore checkpoint
-    #    if args.load_model:
-    #        state_dict = torch.load(args.load_model)
-    #        net.load_state_dict(state_dict["model"])
-    #        step = state_dict["step"]
-    #        best_val_mae = state_dict["best_val_mae"]
-    #        optimizer.load_state_dict(state_dict["optimizer"])
-    #        scheduler.load_state_dict(state_dict["scheduler"])
-    # 这里使用ms自带的check_point
+
     if args.load_model:
         param_dict = ms.load_checkpoint(args.load_model)
         ms.load_param_into_net(net, param_dict)
@@ -292,7 +224,6 @@ def main():
         #for batch_host in train_loader_list:
         for batch in train_loader:
             batch32 = convert_batch_int32(batch[0])
-                
             debuger.debug_devideline("REMARK BATCH")
             #debuger.print_structure(batch32)
             
@@ -305,7 +236,9 @@ def main():
             tstart = timeit.default_timer()
 
             #debuger.debug_devideline("REMARK GRADS")
-            loss = train_net(batch32, batch32["probe_target"])
+            #debuger.debug_check_var(batch32, "batch32")
+            loss = train_net(*list(batch32.values()))
+            debuger.debug_check_var(loss, "loss")
             #debuger.debug_devideline("GRADS END")
 
             #debuger.debug_check_var(loss, "loss", ["shape", "type"])#Tensor [] Float32
@@ -321,7 +254,7 @@ def main():
 
 
             train_timer.update(timeit.default_timer() - tstart)
-
+            '''
             # Validate and save model
             if (step % log_interval == 0) or ((step + 1) == args.max_steps):
                 tstart = timeit.default_timer()
@@ -342,6 +275,7 @@ def main():
                     val_rmse,
                     math.sqrt(train_loss),
                 )
+            
 
                 # Save checkpoint
                 if val_mae < best_val_mae:
@@ -350,10 +284,11 @@ def main():
                     #debuger.debug_check_var(scheduler, "sche")
                     #debuger.debug_check_var(step, "step")
                     #debuger.debug_check_var(best_val_mae, "best_val")
-
+                
                     ms.train.save_checkpoint(net, os.path.join(args.output_dir, "best_model.ckpt"))
                 eval_timer.update(timeit.default_timer() - tstart)
                 logging.debug("%s %s %s %s" % (data_timer, transfer_timer, train_timer, eval_timer))
+                '''
             step += 1
 
             # scheduler.step()

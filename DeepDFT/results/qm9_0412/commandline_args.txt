@@ -1,0 +1,15 @@
+--dataset
+./data/qm9/qm9vasp_test.txt
+--split_file
+./data/qm9/datasplits_test.json
+--output_dir
+./results/qm9_0412
+--cutoff
+4
+--num_interactions
+6
+--use_painn_model
+--max_steps
+100000000
+--node_size
+128

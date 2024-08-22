@@ -4,20 +4,6 @@ import numpy as np
 import mindspore as ms
 from mindspore import nn, ops
 
-def print_structure(var, indent=0):  
-    if isinstance(var, dict):  
-        print(' ' * indent + '{')  
-        for key in var:  
-            print(' ' * (indent + 2) + 'key:' + key, end=' ')  
-            print_structure(var[key], indent + 2)  
-        print(' ' * indent + '}')  
-    elif isinstance(var, list):  
-        print(' ' * indent + '[')  
-        for item in var:  
-            print_structure(item, indent + 2)  
-        print(' ' * indent + ']')  
-    else:  
-        print(' ' * indent + type(var).__name__)
 
 def pad_and_stack(tensors: List[ms.Tensor]):
     """Pad list of tensors if tensors are arrays and stack if they are scalars"""
@@ -31,7 +17,7 @@ def pad_and_stack(tensors: List[ms.Tensor]):
 
 def shifted_softplus(x):
     """Compute shifted soft-plus activation function"""
-    return ops.softplus(x) - np.log(2.0)
+    return ops.softplus(x) - ops.log(ms.Tensor(2.0, dtype=ms.float32))
 
 
 class ShiftedSoftplus(nn.Cell):
@@ -98,19 +84,7 @@ def calc_distance_to_probe(
     splits: ms.Tensor,
     return_diff=False,
 ):
-    """
-    Calculate distance of edges
-
-    Args:
-        positions: Tensor of shape (num_nodes, 3) with xyz coordinates inside cell
-        positions_probe: Tensor of shape (num_probes, 3) with xyz coordinates of probes inside cell
-        cells: Tensor of shape (num_splits, 3, 3) with one unit cell for each split
-        edges: Tensor of shape (num_edges, 2)
-        edges_displacement: Tensor of shape (num_edges, 3) with the offset (in number of cell vectors) of the sending node
-        splits: 1-dimensional tensor with the number of edges for each separate graph
-    """
-    if positions_probe.ndim > 2:
-        positions_probe = positions_probe[0]
+    """Calculate distance of edges"""
     unitcell_repeat = ops.repeat_interleave(cells, splits, axis=0)  # num_edges, 3, 3
     displacement = ops.unsqueeze(edges_displacement, 1).matmul(unitcell_repeat)  # num_edges, 1, 3
     displacement = displacement.squeeze(axis=1)
@@ -129,17 +103,17 @@ def calc_distance_to_probe(
 
 
 def gaussian_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
-    """Expand each feature in a number of Gaussian basis function.
-    Expand_params is a list of length input_x.shape[1]. Changes have
-    been made to fit with GRAPH mode"""
+    """将输入张量中的每个特征按照一组高斯基函数进行扩展。
+    expand_params是一个长度为input_x.shape[1]的列表"""
     feat_list = ops.unbind(input_x, dim=1)
     expanded_list = []
 
-    min_length = min(len(expand_params), len(feat_list))  # make sure of the same length
+    # 确保expand_params和feat_list具有相同的长度
+    min_length = min(len(expand_params), len(feat_list))
+    assert min_length <= len(feat_list), "提供了过多的扩展参数"
     for i in range(min_length):
         step_tuple = expand_params[i]
         feat = feat_list[i]
-        assert feat is not None, "提供了过多的扩展参数"
         start, step, stop = step_tuple
         feat_expanded = ops.unsqueeze(feat, dim=1)
         sigma = step
@@ -148,12 +122,9 @@ def gaussian_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
             ops.exp(-((feat_expanded - basis_mu) ** 2) / (2.0 * sigma ** 2))
         )
 
-    # dealing with the extra expand_params provided
-    for step_tuple in expand_params[min_length:]:
-        start, step, stop = step_tuple
-        expanded_list.append(
-            ops.exp(-((0 - ops.arange(start, stop, step, dtype=input_x.dtype)) ** 2) / (2.0 * step ** 2))
-        )
+    # 如果feat_list的长度大于expand_params的长度，处理剩余的feat_list
+    for feat in feat_list[min_length:]:
+        expanded_list.append(ops.unsqueeze(feat, 1))
 
     return ops.cat(expanded_list, axis=1)
 
@@ -233,18 +204,18 @@ class MessageSum(nn.Cell):
                 nodes = ops.cat((senders, receivers), axis=1)
             else:
                 num_edges = edges.shape[0]
-                nodes = ops.reshape(node_state[edges], (num_edges, -1))
+                nodes = ops.reshape(ops.gather(node_state, edges, 0), [num_edges, -1])
         else:
             nodes = node_state[edges[:, 0]]  # Only include sender in messages
         messages = self.message_function(nodes, edge_state, edges_distance)
 
         # Sum messages
         if receiver_nodes is not None:
-            message_sum = ms.Parameter(ops.zeros_like(receiver_nodes))
+            message_sum = ops.zeros_like(receiver_nodes)
         else:
-            message_sum = ms.Parameter(ops.zeros_like(node_state))
+            message_sum = ops.zeros_like(node_state)
 
-        message_sum = ops.index_add(message_sum, edges[:, 1], messages, 0)
+        message_sum = ops.tensor_scatter_add(message_sum, ops.expand_dims(edges[:, 1], axis=1), messages)
         return message_sum
 
 
@@ -348,10 +319,10 @@ class PaiNNInteraction(nn.Cell):
         )
 
         # Sum messages
-        message_sum_scalar = ms.Parameter(ops.zeros_like(node_state_scalar))
-        message_sum_scalar = ops.index_add(message_sum_scalar, edges[:, 1], messages_scalar, 0)
-        message_sum_vector = ms.Parameter(ops.zeros_like(node_state_vector))
-        message_sum_vector = ops.index_add(message_sum_vector, edges[:, 1], messages_state_vector, 0)
+        message_sum_scalar = ops.zeros_like(node_state_scalar)
+        message_sum_scalar = ops.tensor_scatter_add(message_sum_scalar, ops.expand_dims(edges[:, 1], axis=1), messages_scalar)
+        message_sum_vector = ops.zeros_like(node_state_vector)
+        message_sum_vector = ops.tensor_scatter_add(message_sum_vector, ops.expand_dims(edges[:, 1], axis=1), messages_state_vector)
 
         # State transition
         new_state_scalar = node_state_scalar + message_sum_scalar
@@ -450,24 +421,27 @@ class PaiNNInteractionOneWay(nn.Cell):
 
         return new_state_scalar, new_state_vector
 
-# 这里本来用的是itertools.zip_longest，但是"TypeError: <class 'NoneType'> object is not iterable in graph mode."
-# 我怀疑是因为zip_longest会填充none导致，因此改为itertools.zip，但实验发现好像不是这个问题
+
 def sinc_expansion(input_x: ms.Tensor, expand_params: List[Tuple]):
     """Expand each feature in a sinc-like basis function expansion."""
-
     feat_list = ops.unbind(input_x, dim=1)
     expanded_list = []
-    for step_tuple, feat in itertools.zip_longest(expand_params, feat_list):
+    # 确保expand_params和feat_list具有相同的长度
+    min_length = min(len(expand_params), len(feat_list))
+    for i in range(min_length):
+        step_tuple = expand_params[i]
+        feat = feat_list[i]
         assert feat is not None, "Too many expansion parameters given"
-        if step_tuple:
-            n, cutoff = step_tuple
-            feat_expanded = ops.unsqueeze(feat, dim=1)
-            n_range = ops.arange(n, dtype=input_x.dtype) + 1
-            # multiplication by pi n_range / cutoff is done in original painn for some reason
-            out = ops.sinc(n_range/cutoff*feat_expanded)*np.pi*n_range/cutoff
-            expanded_list.append(out)
-        else:
-            expanded_list.append(ops.unsqueeze(feat, 1))
+        n, cutoff = step_tuple
+        feat_expanded = ops.unsqueeze(feat, dim=1)
+        n_range = ops.arange(n, dtype=input_x.dtype) + 1
+        # multiplication by pi n_range / cutoff is done in original painn for some reason
+        out = ops.sinc(n_range/cutoff*feat_expanded)*np.pi*n_range/cutoff
+        expanded_list.append(out)
+
+    # 如果feat_list的长度大于expand_params的长度，处理剩余的feat_list
+    for feat in feat_list[min_length:]:
+        expanded_list.append(ops.unsqueeze(feat, 1))
     return ops.cat(expanded_list, axis=1)
 
 

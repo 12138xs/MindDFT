@@ -1,0 +1,3 @@
+pretrained_models/*
+__pycache__/*
+dft_utils/__pycache__/*
