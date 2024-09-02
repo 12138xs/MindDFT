@@ -1,4 +1,5 @@
 import warnings
+warnings.filterwarnings('ignore')
 import os
 import numpy as np
 import sys
@@ -20,8 +21,19 @@ import h5py
 import itertools
 import glob
 import shutil
+
 from MLDFT.src.FPtf import fp_atom,fp_chg_norm
 
+class Input_parameters:
+    test_chg=test_chg
+    write_chg=write_chg
+    grid_spacing=grid_spacing
+    
+inp_args=Input_parameters()
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH = os.path.join(ROOT_DIR, '../Trained_models/weights_CHG.hdf5')
+
+# define model
 class model_atomC_chg(nn.Cell):
     def __init__(self):
         super(model_atomC_chg, self).__init__()
@@ -109,29 +121,13 @@ class modelCHG(nn.Cell):
 def init_chgmod(padding_size):
     model_CHG = modelCHG(padding_size)
     return model_CHG
+
 def model_weights(modelCHG):
     #modelCHG.load_weights(CONFIG_PATH)
     return modelCHG
 
-"""
-i1 = ops.ones((1,160,360))
-i2 = ops.ones((1,160,360))
-i3 = ops.ones((1,160,360))
-i4 = ops.ones((1,160,360))
-#i5 = ops.ones((1,))
-#i6 = ops.ones((7,6,341))
-#i7 = ops.ones((7,6,341))
-#i8 = ops.ones((7,6,341))
-#i9 = ops.ones((7,6,341))
-model = modelCHG(160)
-y1,y2,y3,y4 = model(i1,i2,i3,i4)
-print(y1.shape)
-print(y2.shape)
-print(model)
-"""
 
-
-
+## CHG prediction
 def s_chg(n, exps, coefs, k_r):
     expss = np.reshape(exps, (exps.shape[0], 1))
     k_rr = np.reshape(k_r, (1, k_r.shape[0]))
@@ -144,7 +140,6 @@ def s_chg(n, exps, coefs, k_r):
     expss = np.multiply(exps, k_rr_n)
     cont = np.squeeze(np.asarray(np.matmul(coef, expss)))
     return cont
-
 
 def p_chg(n, exps, coefsx, coefsy, coefsz, new_coords, k_r):
     expss = np.reshape(exps, (exps.shape[0], 1))
@@ -165,7 +160,6 @@ def p_chg(n, exps, coefsx, coefsy, coefsz, new_coords, k_r):
     expss = np.sum(exps, axis=1)
     cont = np.squeeze(np.asarray(np.multiply(expss, k_rr_n.T)))
     return cont
-
 
 def d_chg(n, exps, coefs1, coefs2, coefs3, coefs4, coefs5, coords, k_r):
     expss = np.reshape(exps, (exps.shape[0], 1))
@@ -206,7 +200,6 @@ def d_chg(n, exps, coefs1, coefs2, coefs3, coefs4, coefs5, coords, k_r):
     expss = np.sum(exps, axis=1)
     cont = np.squeeze(np.asarray(np.multiply(expss, k_rr_n.T)))
     return cont
-
 
 def f_chg(n, exps, coefs1, coefs2, coefs3, coefs4, coefs5, coefs6, coefs7, coords, k_r):
     expss = np.reshape(exps, (exps.shape[0], 1))
@@ -270,7 +263,6 @@ def f_chg(n, exps, coefs1, coefs2, coefs3, coefs4, coefs5, coefs6, coefs7, coord
     expss = np.sum(exps, axis=1)
     cont = np.squeeze(np.asarray(np.multiply(expss, k_rr_n.T)))
     return cont
-
 
 def g_chg(n, exps, coefs1, coefs2, coefs3, coefs4, coefs5, coefs6, coefs7, coefs8, coefs9, coords, k_r):
     expss = np.reshape(exps, (exps.shape[0], 1))
@@ -367,7 +359,6 @@ def g_chg(n, exps, coefs1, coefs2, coefs3, coefs4, coefs5, coefs6, coefs7, coefs
     cont = np.squeeze(np.asarray(np.multiply(expss, k_rr_n.T)))
     return cont
 
-
 def meshgrid2(*arrs):
     arrs = tuple(reversed(arrs))
     lens = list(map(len, arrs))
@@ -385,7 +376,6 @@ def meshgrid2(*arrs):
                 arr2 = arr2.repeat(sz, axis=j)
         ans.append(arr2)
     return tuple(ans)
-
 
 def chg_pts(poscar_data, supercell, grid_spacing):
     supercell_size = [1, 1, 1]
@@ -405,7 +395,6 @@ def chg_pts(poscar_data, supercell, grid_spacing):
     list_grid_pts = positions.T
 
     return list_grid_pts, num_pts
-
 
 def chg_ref(file_loc, vol, supercell):
     chgcar_file = os.path.join(file_loc, "CHGCAR")
@@ -438,7 +427,6 @@ def chg_ref(file_loc, vol, supercell):
     chg_coor = np.array(chg_coor)
     chg_den = np.array(chg_den)
     return chg_coor, chg_den, num_pts
-
 
 def chg_train(file_loc, vol, supercell, sites_elem, num_atoms, at_elem):
     chgcar_file = os.path.join(file_loc, "CHGCAR")
@@ -561,7 +549,6 @@ def chg_train(file_loc, vol, supercell, sites_elem, num_atoms, at_elem):
     local = np.vstack(np.array(final_coords))
     local_coords = np.reshape(local, (num_atoms, 1000, 3))
     return chg_den, local_coords
-
 
 def chg_dat_prep(at_elem, dataset1, dataset2, i1, i2, i3, i4, num_chg_bins):
     val_conf1 = []
@@ -690,7 +677,6 @@ def chg_dat_prep(at_elem, dataset1, dataset2, i1, i2, i3, i4, num_chg_bins):
     X_tot_at4 = np.pad(dataset_at4.T, pad_width=((0, 0), (0, padding_size - dataset_at4.T.shape[1])), mode='constant',constant_values=(0, 0))
     return X_tot_at1, X_tot_at2, X_tot_at3, X_tot_at4
 
-
 def C_coef_split(Coef_at1):
     expss, coefss = np.split(Coef_at1, [93])
     exps_1s, exps_2s, exps_3s, exps_4s, exps_5s, exps_6s, exps_7s, exps_2p, exps_3p, exps_4p, exps_5p, exps_6p, exps_3d, exps_4d, exps_5d, exps_6d, exps_4f, exps_5f, exps_5g = np.split(
@@ -701,7 +687,6 @@ def C_coef_split(Coef_at1):
          140, 146, 152, 156, 160, 164, 168, 172, 174, 176, 178, 180, 182, 183, 184, 185, 186, 187, 191, 195, 199, 203,
          207, 211, 215, 217, 219, 221, 223, 225, 227, 229, 231, 233, 235, 237, 239, 241, 243, 245])
     return exps_1s, exps_2s, exps_3s, exps_4s, exps_5s, exps_6s, exps_7s, exps_2p, exps_3p, exps_4p, exps_5p, exps_6p, exps_3d, exps_4d, exps_5d, exps_6d, exps_4f, exps_5f, exps_5g, coefs_1s, coefs_2s, coefs_3s, coefs_4s, coefs_5s, coefs_6s, coefs_7s, coefs_2px, coefs_2py, coefs_2pz, coefs_3px, coefs_3py, coefs_3pz, coefs_4px, coefs_4py, coefs_4pz, coefs_5px, coefs_5py, coefs_5pz, coefs_6px, coefs_6py, coefs_6pz, coefs_3d1, coefs_3d2, coefs_3d3, coefs_3d4, coefs_3d5, coefs_4d1, coefs_4d2, coefs_4d3, coefs_4d4, coefs_4d5, coefs_5d1, coefs_5d2, coefs_5d3, coefs_5d4, coefs_5d5, coefs_6d1, coefs_6d2, coefs_6d3, coefs_6d4, coefs_6d5, coefs_4f1, coefs_4f2, coefs_4f3, coefs_4f4, coefs_4f5, coefs_4f6, coefs_4f7, coefs_5f1, coefs_5f2, coefs_5f3, coefs_5f4, coefs_5f5, coefs_5f6, coefs_5f7, coefs_5g1, coefs_5g2, coefs_5g3, coefs_5g4, coefs_5g5, coefs_5g6, coefs_5g7, coefs_5g8, coefs_5g9
-
 
 def H_coef_split(Coef_at2):
     expss, coefss = np.split(Coef_at2, [58])
@@ -714,18 +699,15 @@ def H_coef_split(Coef_at2):
          148, 149])
     return exps_1s, exps_2s, exps_3s, exps_4s, exps_2p, exps_3p, exps_4p, exps_3d, exps_4d, exps_5d, exps_4f, exps_5f, exps_5g, coefs_1s, coefs_2s, coefs_3s, coefs_4s, coefs_2px, coefs_2py, coefs_2pz, coefs_3px, coefs_3py, coefs_3pz, coefs_4px, coefs_4py, coefs_4pz, coefs_3d1, coefs_3d2, coefs_3d3, coefs_3d4, coefs_3d5, coefs_4d1, coefs_4d2, coefs_4d3, coefs_4d4, coefs_4d5, coefs_5d1, coefs_5d2, coefs_5d3, coefs_5d4, coefs_5d5, coefs_4f1, coefs_4f2, coefs_4f3, coefs_4f4, coefs_4f5, coefs_4f6, coefs_4f7, coefs_5f1, coefs_5f2, coefs_5f3, coefs_5f4, coefs_5f5, coefs_5f6, coefs_5f7, coefs_5g1, coefs_5g2, coefs_5g3, coefs_5g4, coefs_5g5, coefs_5g6, coefs_5g7, coefs_5g8, coefs_5g9
 
-
 def C_coef_s(Coef_at1):
     exps_1s, exps_2s, exps_3s, exps_4s, exps_5s, exps_6s, exps_7s, exps_2p, exps_3p, exps_4p, exps_5p, exps_6p, exps_3d, exps_4d, exps_5d, exps_6d, exps_4f, exps_5f, exps_5g, coefs_1s, coefs_2s, coefs_3s, coefs_4s, coefs_5s, coefs_6s, coefs_7s, coefs_2px, coefs_2py, coefs_2pz, coefs_3px, coefs_3py, coefs_3pz, coefs_4px, coefs_4py, coefs_4pz, coefs_5px, coefs_5py, coefs_5pz, coefs_6px, coefs_6py, coefs_6pz, coefs_3d1, coefs_3d2, coefs_3d3, coefs_3d4, coefs_3d5, coefs_4d1, coefs_4d2, coefs_4d3, coefs_4d4, coefs_4d5, coefs_5d1, coefs_5d2, coefs_5d3, coefs_5d4, coefs_5d5, coefs_6d1, coefs_6d2, coefs_6d3, coefs_6d4, coefs_6d5, coefs_4f1, coefs_4f2, coefs_4f3, coefs_4f4, coefs_4f5, coefs_4f6, coefs_4f7, coefs_5f1, coefs_5f2, coefs_5f3, coefs_5f4, coefs_5f5, coefs_5f6, coefs_5f7, coefs_5g1, coefs_5g2, coefs_5g3, coefs_5g4, coefs_5g5, coefs_5g6, coefs_5g7, coefs_5g8, coefs_5g9 = C_coef_split(
         Coef_at1)
     return exps_1s, exps_2s, exps_3s, exps_4s, exps_5s, exps_6s, exps_7s, coefs_1s, coefs_2s, coefs_3s, coefs_4s, coefs_5s, coefs_6s, coefs_7s
 
-
 def H_coef_s(Coef_at2):
     exps_1s, exps_2s, exps_3s, exps_4s, exps_2p, exps_3p, exps_4p, exps_3d, exps_4d, exps_5d, exps_4f, exps_5f, exps_5g, coefs_1s, coefs_2s, coefs_3s, coefs_4s, coefs_2px, coefs_2py, coefs_2pz, coefs_3px, coefs_3py, coefs_3pz, coefs_4px, coefs_4py, coefs_4pz, coefs_3d1, coefs_3d2, coefs_3d3, coefs_3d4, coefs_3d5, coefs_4d1, coefs_4d2, coefs_4d3, coefs_4d4, coefs_4d5, coefs_5d1, coefs_5d2, coefs_5d3, coefs_5d4, coefs_5d5, coefs_4f1, coefs_4f2, coefs_4f3, coefs_4f4, coefs_4f5, coefs_4f6, coefs_4f7, coefs_5f1, coefs_5f2, coefs_5f3, coefs_5f4, coefs_5f5, coefs_5f6, coefs_5f7, coefs_5g1, coefs_5g2, coefs_5g3, coefs_5g4, coefs_5g5, coefs_5g6, coefs_5g7, coefs_5g8, coefs_5g9 = H_coef_split(
         Coef_at2)
     return exps_1s, exps_2s, exps_3s, exps_4s, coefs_1s, coefs_2s, coefs_3s, coefs_4s
-
 
 def coef_predict(X_3D1, X_3D2, X_3D3, X_3D4, i1, i2, i3, i4, modelCHG):
     modelCHGt = model_weights(modelCHG)
@@ -741,7 +723,6 @@ def coef_predict(X_3D1, X_3D2, X_3D3, X_3D4, i1, i2, i3, i4, modelCHG):
     else:
         Coef_at4 = ms.Tensor(np.zeros((1,1,340)),ms.float32)
     return Coef_at1, Coef_at2, Coef_at3, Coef_at4
-
 
 def chg_predict(X_3D1, X_3D2, X_3D3, X_3D4, i1, i2, i3, i4, sites_elem, modelCHG, at_elem):
     modelCHGt = model_weights(modelCHG)
@@ -813,7 +794,6 @@ def chg_predict(X_3D1, X_3D2, X_3D3, X_3D4, i1, i2, i3, i4, sites_elem, modelCHG
             O_at_charge.append(charge)
             jj = jj + 1
     return Coef_at1, Coef_at2, Coef_at3, Coef_at4, C_at_charge, H_at_charge, N_at_charge, O_at_charge
-
 
 def C_chg_print(x, cutoff_distance, coefs, sites_elem, poscar_data, chg_coor, dim, vol, tot_C, count, jj, iden,
                 tot_chg):

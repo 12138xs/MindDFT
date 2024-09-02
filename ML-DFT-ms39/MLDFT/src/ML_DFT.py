@@ -1,4 +1,11 @@
 import warnings
+def fxn():
+    warnings.warn("deprecated", DeprecationWarning)
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    fxn()
+warnings.filterwarnings('ignore')
 import numpy as np
 import shutil
 import pandas as pd
@@ -9,6 +16,8 @@ from inp_params import train_e,ert_epochs,ert_batch_size,ert_patience,train_dos,
 from sklearn.metrics import mean_absolute_error
 
 import time
+import h5py
+
 
 import pymatgen
 from pymatgen import io
@@ -16,18 +25,18 @@ from pymatgen.io.vasp.outputs import Poscar
 import os
 
 elec_dict={6:4,1:1,7:5, 8:6}
+# package
 #from MLDFT.src.FP import fp_atom,fp_chg_norm,fp_norm
 #from MLDFT.src.CHG import init_chgmod,chg_predict,chg_ref,chg_pred_data,chg_pts,chg_print,chg_train,chg_dat_prep,coef_predict
 #from MLDFT.src.Energy import init_Emod,energy_predict,e_train,retrain_emodel
 #from MLDFT.src.DOS import init_DOSmod,DOS_pred, DOS_plot,retrain_dosmodel
 #from MLDFT.src.data_io import get_def_data, get_all_data, get_efp_data, dos_mask,get_e_dos_data, get_dos_data, get_dos_e_train_data,pad_efp_data,pad_dos_dat,pad_dat,chg_data
-
+# local test
 from FPtf import fp_atom,fp_chg_norm,fp_norm
 from CHG import init_chgmod,chg_predict,chg_ref,chg_pred_data,chg_pts,chg_print,chg_train,chg_dat_prep,coef_predict
 from Energy import init_Emod,energy_predict,e_train,retrain_emodel
 from DOS import init_DOSmod,DOS_pred, DOS_plot,retrain_dosmodel
 from data_io import get_def_data, get_all_data, get_efp_data, dos_mask,get_e_dos_data, get_dos_data, get_dos_e_train_data,pad_efp_data,pad_dos_dat,pad_dat,chg_data
-
 orig_stdout = sys.stdout
 f = open('OUT_DATA', 'w')
 sys.stdout = f
@@ -108,7 +117,7 @@ def ML_DFT(file_loc):
         if i4!= 0:
             Forces=np.concatenate((Forces,ForO[0:i4]),axis=0)
         print('Total potential energy:', Pred_Energy*num_atoms, ' eV')
-        print('Atomif forces (eV/A):', Forces)
+        print('Atomic forces (eV/A):', Forces)
         print('The stress tensor components are (kB): Sxx:', Stress[0],' Syy:', Stress[1],' Szz:', Stress[2], ' Sxy:', Stress[3],' Syz:', Stress[4],' Sxz:', Stress[5] )
     if test_dos:
         modelD=init_DOSmod(padding_size)

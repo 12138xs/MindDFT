@@ -37,7 +37,6 @@ import h5py
 import glob
 import shutil
 
-#from keras.backend.tensorflow_backend import set_session
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH1 = os.path.join(ROOT_DIR, '../Trained_models/Scale_model_C.joblib')
 CONFIG_PATH2 = os.path.join(ROOT_DIR, '../Trained_models/Scale_model_H.joblib')

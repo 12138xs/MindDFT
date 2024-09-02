@@ -1,9 +1,10 @@
 import warnings
+warnings.filterwarnings('ignore')
 import os
 import numpy as np
 import sys
 import math
-from inp_params import test_chg,write_chg,grid_spacing
+from inp_params import train_dos,new_weights_dos
 import argparse
 import matplotlib
 matplotlib.use('Agg')
@@ -25,15 +26,21 @@ from random import sample
 import json
 from operator import itemgetter
 import h5py
-
-
 import glob
 import shutil
+
+class Input_parameters:
+    train_dos=train_dos
+    new_weights_dos=new_weights_dos
+
+inp_args=Input_parameters()
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH1 = os.path.join(ROOT_DIR, '../Trained_models/weights_DOS.hdf5')
 
 class single_atom_modelC_1(nn.Cell):
     def __init__(self):
         super(single_atom_modelC_1, self).__init__()
-        self.dense1 = nn.Dense(700,600, activation='relu')#weight_decay=0.1, kernel_initializer='glorot_uniform'
+        self.dense1 = nn.Dense(700,600, activation='relu') # weight_decay=0.1, kernel_initializer='glorot_uniform'
         self.dense2 = nn.Dense(600,600, activation='relu')
         self.dense3 = nn.Dense(600,343, activation='relu')
         self.dropout = nn.Dropout(p=0.1)
@@ -52,7 +59,7 @@ class single_atom_modelC_1(nn.Cell):
         modelC_out = ops.reshape(modelC_out,(-1,1,343))
         modelC_out = self.conv1(modelC_out)
         modelC_out = self.relu(modelC_out)
-        modelC_out = ops.mean(modelC_out,axis=1)
+        modelC_out = ops.mean(modelC_out,axis=1) ### ?源代码为axis=-1
 
         return modelC_out
 
@@ -164,22 +171,6 @@ class modelDOS(nn.Cell):
 
         return model_s1,bands
 
-"""
-i1 = ops.ones((7,6,700))
-i2 = ops.ones((7,6,568))
-i3 = ops.ones((7,6,700))
-i4 = ops.ones((7,6,700))
-i5 = ops.ones((1,))
-i6 = ops.ones((7,6,341))
-i7 = ops.ones((7,6,341))
-i8 = ops.ones((7,6,341))
-i9 = ops.ones((7,6,341))
-model = modelDOS(6)
-y1,y2 = model(i1,i2,i3,i4,i5,i6,i7,i8,i9)
-print(y1.shape)
-print(y2.shape)
-print(model)
-"""
 
 def init_DOSmod(padding_size):
     model_CHG = modelDOS(padding_size)
