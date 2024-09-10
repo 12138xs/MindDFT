@@ -9,7 +9,9 @@
   
 * **ML-DFT** 【[源码](https://github.com/Ramprasad-Group/ML-DFT/tree/main) | [文章](https://www.nature.com/articles/s41524-023-01115-3)】
   * 简介：ML-DFT 是各种深度学习模型的组合，可在 DFT 级别预测分子和聚合物电子结构的各种属性：电子密度、态密度和总势能（带有力和应力张量）。唯一需要的输入是 POSCAR 格式的结构信息。
-  * `master`
+  * `master`分支，包含三个子模型：CHG, DOS, Energy
+  * **训练模块**：DOS_retrain (loss较大), Energy_retrain
+  * **推理模块**：CHG_predict, DOS_predict (精度差距，推测由dropout函数造成), Energy_predict
 
 * **equivariant_electron_density** 【[源码](https://github.com/JoshRackers/equivariant_electron_density/tree/main) | [文章](https://www.cell.com/biophysj/pdf/S0006-3495(22)00727-5.pdf)】
   * Predicting accurate ab initio DNA electron densities with equivariant neural networks
@@ -17,8 +19,8 @@
   * `EEDM`
 
 
-### TODO List
+### TODO List (0910)
 
 * 合并DeepDFT代码
-* 整理ML-DFT代码
+* 对齐ML-DFT精度，在启智社区上测试
 * 实现e3nn中gate_points_2101模型
