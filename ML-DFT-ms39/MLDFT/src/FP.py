@@ -3,7 +3,6 @@ import warnings
 import numpy as np
 import math
 import os
-#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import sys
 sys.path.append(os.getcwd())
 from inp_params import batch_size_fp, num_gamma, cut_off_rad, widest_gaussian, narrowest_gaussian
@@ -18,17 +17,10 @@ import mindspore as ms
 import mindspore.ops as ops
 import mindspore.nn as nn
 
-#import tensorflow as tf
-#import keras.backend as K
-#from keras.models import Sequential, Model
-#from keras.layers import Lambda,Input, concatenate,Dense, Conv1D,Dot,Flatten, Activation, Subtract, Reshape, Add, ELU, LeakyReLU, ReLU, TimeDistributed,PReLU,Dropout
-#from keras.preprocessing.sequence import pad_sequences
-
 import pymatgen
 from pymatgen import io
 from pymatgen.io.vasp.outputs import Poscar
 from pymatgen.io.vasp.outputs import Chgcar
-
 
 from random import Random
 
@@ -49,19 +41,11 @@ class Input_parameters:
     narrowest_gaussian = narrowest_gaussian
     num_gamma = num_gamma
     
-
 inp_args=Input_parameters()
-
-
 inp_args.list_sigma = np.logspace(math.log10(inp_args.narrowest_gaussian),math.log10(inp_args.widest_gaussian), num_gamma)
 inp_args.list_gamma = 0.5 / inp_args.list_sigma ** 2
 inp_args.num_gamma = num_gamma
-"""
-sess = tf.compat.v1.Session()
-init = tf.compat.v1.initialize_all_variables()
 
-sess.run(init)
-"""
 
 def fp_atom(poscar_data,supercell,elems_list):
     cart_grid=[]
@@ -102,6 +86,7 @@ def fp_atom(poscar_data,supercell,elems_list):
     cart_grid_K=np.concatenate(cart_grid, axis=0)
     frac_grid_K=np.concatenate(frac_grid, axis=0)
     padding_size=max(at_elem)
+
     def quad(cart_grid_ms):
         quad_list=[]
         for num_e in range(len(unique_cart_list)):
@@ -178,23 +163,20 @@ def fp_atom(poscar_data,supercell,elems_list):
 
         return all_elem_quad
 #
-    def modelff():
-        inp_grid = Input((3,))
-        out=Lambda(quad)(inp_grid)
-        modelff = Model(inputs=inp_grid, outputs=out)
-        return modelff
+    # def modelff():
+    #     inp_grid = Input((3,))
+    #     out=Lambda(quad)(inp_grid)
+    #     modelff = Model(inputs=inp_grid, outputs=out)
+    #     return modelff
     #K.clear_session()
+    #modelff = modelff()
+    #num_atoms=cart_grid_K.shape[0]
+    #Y = modelff.predict(cart_grid_K, batch_size=inp_args.batch_size_fp,verbose=0)
 
     cart_grid_K = ms.Tensor.from_numpy(cart_grid_K)
     Y = quad(cart_grid_K)
     Y = Y.asnumpy()
     num_atoms = cart_grid_K.shape[0]
-
-
-
-    #modelff = modelff()
-    #num_atoms=cart_grid_K.shape[0]
-    #Y = modelff.predict(cart_grid_K, batch_size=inp_args.batch_size_fp,verbose=0)
 
     if num_elems==2:
         fp_el=Y.shape[1]
@@ -281,10 +263,11 @@ def fp_atom(poscar_data,supercell,elems_list):
     return Y,final_mat,sites_elem,num_atoms,at_elem
 
 def fp_chg_norm(Coef_at1,Coef_at2,Coef_at3,Coef_at4,X_3D1,X_3D2,X_3D3,X_3D4,padding_size):
-    padCHG1 = np.pad(Coef_at1.T, pad_width=((0, 0), (0, padding_size - Coef_at1.T.shape[1])), mode='constant', constant_values=(0, 0))
-    padCHG2 = np.pad(Coef_at2.T, pad_width=((0, 0), (0, padding_size - Coef_at2.T.shape[1])), mode='constant', constant_values=(0, 0))
-    padCHG3 = np.pad(Coef_at3.T, pad_width=((0, 0), (0, padding_size - Coef_at3.T.shape[1])), mode='constant', constant_values=(0, 0))
-    padCHG4 = np.pad(Coef_at4.T, pad_width=((0, 0), (0, padding_size - Coef_at4.T.shape[1])), mode='constant', constant_values=(0, 0))
+    print(Coef_at1.shape, Coef_at2.shape,Coef_at3.shape,Coef_at4.shape)
+    padCHG1 = np.pad(Coef_at1.T, pad_width=((0, 0), (0, padding_size - Coef_at1.T.shape[1]), (0, 0)), mode='constant', constant_values=(0, 0))
+    padCHG2 = np.pad(Coef_at2.T, pad_width=((0, 0), (0, padding_size - Coef_at2.T.shape[1]), (0, 0)), mode='constant', constant_values=(0, 0))
+    padCHG3 = np.pad(Coef_at3.T, pad_width=((0, 0), (0, padding_size - Coef_at3.T.shape[1]), (0, 0)), mode='constant', constant_values=(0, 0))
+    padCHG4 = np.pad(Coef_at4.T, pad_width=((0, 0), (0, padding_size - Coef_at4.T.shape[1]), (0, 0)), mode='constant', constant_values=(0, 0))
     X_C=np.concatenate((X_3D1,padCHG1.T),axis=-1)
     X_H=np.concatenate((X_3D2,padCHG2.T),axis=-1)
     X_N=np.concatenate((X_3D3,padCHG3.T),axis=-1)

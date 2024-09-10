@@ -1,17 +1,13 @@
 import warnings
-#warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore')
 import numpy as np
 from numpy import cumsum
 
 import argparse
 import os
-#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import sys
 sys.path.append(os.getcwd())
 
-#import tensorflow as tf
-#import keras.backend as K
-#from keras.preprocessing.sequence import pad_sequences
 import mindspore as ms
 import mindspore.ops as ops
 import mindspore.nn as nn
@@ -28,16 +24,17 @@ import pathlib
 import glob
 import shutil
 
-#from keras.backend.tensorflow_backend import set_session
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-from MLDFT.src.FP import fp_atom
-from MLDFT.src.CHG import chg_train,chg_dat_prep,coef_predict
-from MLDFT.src.Energy import e_train
-from MLDFT.src.DOS import DOS_pred,dos_data
-elec_dict={6:4,  1:1, 7:5,8:6}
+# from MLDFT.src.FP import fp_atom
+# from MLDFT.src.CHG import chg_train,chg_dat_prep,coef_predict
+# from MLDFT.src.Energy import e_train
+# from MLDFT.src.DOS import DOS_pred,dos_data
+from FP import fp_atom
+from CHG import chg_train,chg_dat_prep,coef_predict
+from Energy import e_train
+from DOS import DOS_pred,dos_data
+elec_dict={6:4, 1:1, 7:5, 8:6}
 
-#tfkl = tf.keras.layers
-#tfkl = tf.keras.layers
 
 def get_def_data(file_loc):
     print(file_loc)
@@ -114,15 +111,11 @@ def get_fp_basis_F(at_elem,X_tot,forces_data,base_mat,padding_size):
         basis=base_mat[h:i+h]
         basis=np.reshape(basis,(i,9))
         f_pad=np.pad(f.T, ((0, 0), (0, padding_size - f.T.shape[1])), mode='constant', constant_values=(0, 0))
-        f_pad = f_pad.astype(np.float32)
-        basis_pad=np.pad(f.T, ((0, 0), (0, padding_size - f.T.shape[1])), mode='constant', constant_values=(0, 0))
-        basis_pad = basis_pad.astype(np.float32)
-        forces_pad=np.pad(f.T, ((0, 0), (0, padding_size - f.T.shape[1])), mode='constant', constant_values=(0, 0))
-        forces_pad = forces_pad.astype(np.float32)
+        basis_pad=np.pad(basis.T, ((0, 0), (0, padding_size - basis.T.shape[1])), mode='constant', constant_values=(0, 0))
+        forces_pad=np.pad(forces.T, ((0, 0), (0, padding_size - forces.T.shape[1])), mode='constant', constant_values=(1000, 1000))
         X_npad.append(f_pad)
         basis_npad.append(basis_pad)
         forces_npad.append(forces_pad)
-
         h=h+i
         pp=pp+1
 
@@ -132,15 +125,11 @@ def get_fp_basis_F(at_elem,X_tot,forces_data,base_mat,padding_size):
         basis=base_mat[i1+i2:i1+i2+i3]
         basis=np.reshape(basis,(i3,9))
         f_pad=np.pad(f.T, pad_width=((0, 0), (0, padding_size - f.T.shape[1])), mode='constant', constant_values=(0, 0))
-        f_pad = f_pad.astype(np.float32)
         basis_pad=np.pad(basis.T, pad_width=((0, 0), (0, padding_size - basis.T.shape[1])), mode='constant', constant_values=(0, 0))
-        basis_pad = basis_pad.astype(np.float32)
-        forces_pad=np.pad(forces.T, pad_width=((0, 0), (0, padding_size - forces.T.shape[1])), mode='constant', constant_values=(0, 0))
-        forces_pad = forces_pad.astype(np.float32)
+        forces_pad=np.pad(forces.T, pad_width=((0, 0), (0, padding_size - forces.T.shape[1])), mode='constant', constant_values=(1000, 1000))
         X_npad.append(f_pad)
         basis_npad.append(basis_pad)
         forces_npad.append(forces_pad)
-
     else:
         f=[0]*360
         f=np.array(np.reshape(f,(1,360)))
@@ -149,24 +138,20 @@ def get_fp_basis_F(at_elem,X_tot,forces_data,base_mat,padding_size):
         basis=[0,0,0,0,0,0,0,0,0]
         basis=np.array(np.reshape(basis,(1,9)))
         f_pad=np.pad(f.T, pad_width=((0, 0), (0, padding_size - f.T.shape[1])), mode='constant', constant_values=(0, 0))
-        f_pad = f_pad.astype(np.float32)
         basis_pad=np.pad(basis.T, pad_width=((0, 0), (0, padding_size - basis.T.shape[1])), mode='constant', constant_values=(0, 0))
-        basis_pad = basis_pad.astype(np.float32)
-        forces_pad=np.pad(forces.T, pad_width=((0, 0), (0, padding_size - forces.T.shape[1])), mode='constant', constant_values=(0, 0))
-        forces_pad = forces_pad.astype(np.float32)
+        forces_pad=np.pad(forces.T, pad_width=((0, 0), (0, padding_size - forces.T.shape[1])), mode='constant', constant_values=(1000, 1000))
         X_npad.append(f_pad)
         basis_npad.append(basis_pad)
         forces_npad.append(forces_pad)
+
     if at_elem[3] != 0:
         f=X_tot[i1+i2+i3:i1+i2+i3+i4,0:360]
         forces=forces_data[i1+i2+i3:i1+i2+i3+i4]
         basis=base_mat[i1+i2+i3:i1+i2+i3+i4]
         basis=np.reshape(basis,(i4,9))
         f_pad=np.pad(f.T, pad_width=((0, 0), (0, padding_size - f.T.shape[1])), mode='constant', constant_values=(0, 0))
-        f_pad = f_pad.astype(np.float32)
         basis_pad=np.pad(basis.T, pad_width=((0, 0), (0, padding_size - basis.T.shape[1])), mode='constant', constant_values=(0, 0))
-        basis_pad = basis_pad.astype(np.float32)
-        forces_pad=np.pad(forces.T, pad_width=((0, 0), (0, padding_size - forces.T.shape[1])), mode='constant', constant_values=(0, 0))
+        forces_pad=np.pad(forces.T, pad_width=((0, 0), (0, padding_size - forces.T.shape[1])), mode='constant', constant_values=(1000, 1000))
         forces_pad = forces_pad.astype(np.float32)
         X_npad.append(f_pad)
         basis_npad.append(basis_pad)
@@ -179,11 +164,8 @@ def get_fp_basis_F(at_elem,X_tot,forces_data,base_mat,padding_size):
         basis=[0,0,0,0,0,0,0,0,0]
         basis=np.array(np.reshape(basis,(1,9)))
         f_pad=np.pad(f.T, pad_width=((0, 0), (0, padding_size - f.T.shape[1])), mode='constant', constant_values=(0, 0))
-        f_pad = f_pad.astype(np.float32)
         basis_pad=np.pad(basis.T, pad_width=((0, 0), (0, padding_size - basis.T.shape[1])), mode='constant', constant_values=(0, 0))
-        basis_pad = basis_pad.astype(np.float32)
-        forces_pad=np.pad(forces.T, pad_width=((0, 0), (0, padding_size - forces.T.shape[1])), mode='constant', constant_values=(0, 0))
-        forces_pad = forces_pad.astype(np.float32)
+        forces_pad=np.pad(forces.T, pad_width=((0, 0), (0, padding_size - forces.T.shape[1])), mode='constant', constant_values=(1000, 1000))
         X_npad.append(f_pad)
         basis_npad.append(basis_pad)
         forces_npad.append(forces_pad)
@@ -279,13 +261,12 @@ def chg_data(dataset1,basis_mat,i1,i2,i3,i4,padding_size):
     N_m=np.reshape(N_at,(1,padding_size,1))
     O_m=np.reshape(O_at,(1,padding_size,1))
     X_tot_at1=np.pad(dataset_at1.T, pad_width=((0, 0), (0, padding_size - dataset_at1.T.shape[1])), mode='constant', constant_values=(0, 0))
-    #X_tot_at1 =np.pad(dataset_at1.T, pad_width=((0, 0), (0, padding_size - dataset_at1.T.shape[1])), mode='constant', constant_values=(0, 0))
     base_at1=np.pad(basis_at1.T, pad_width=((0, 0), (0, padding_size - basis_at1.T.shape[1])), mode='constant', constant_values=(0, 0))
     X_tot_at2=np.pad(dataset_at2.T, pad_width=((0, 0), (0, padding_size - dataset_at2.T.shape[1])), mode='constant', constant_values=(0, 0))
     base_at2=np.pad(basis_at2.T, pad_width=((0, 0), (0, padding_size - basis_at2.T.shape[1])), mode='constant', constant_values=(0, 0))
     X_tot_at3=np.pad(dataset_at3.T, pad_width=((0, 0), (0, padding_size - dataset_at3.T.shape[1])), mode='constant', constant_values=(0, 0))
     base_at3=np.pad(basis_at3.T, pad_width=((0, 0), (0, padding_size - basis_at3.T.shape[1])), mode='constant', constant_values=(0, 0))
-    X_tot_at4=np.pad(dataset_at4, pad_width=((0, 0), (0, padding_size - dataset_at4.T.shape[1])), mode='constant', constant_values=(0, 0))
+    X_tot_at4=np.pad(dataset_at4.T, pad_width=((0, 0), (0, padding_size - dataset_at4.T.shape[1])), mode='constant', constant_values=(0, 0))
     base_at4=np.pad(basis_at4.T, pad_width=((0, 0), (0, padding_size - basis_at4.T.shape[1])), mode='constant', constant_values=(0, 0))
     X_3D1=np.reshape(X_tot_at1.T,(1,padding_size,dataset_at1.shape[1]))
     basis1=np.reshape(base_at1.T,(1,padding_size,9))
@@ -524,26 +505,21 @@ def get_dos_e_train_data(X_1,X_2,X_3,X_4,X_elem,padding_size,modelCHG):
     X_N=[]
     X_O=[]
     for i in range (0,X_1.shape[0]):
+        predCHG1,predCHG2,predCHG3,predCHG4=coef_predict(X_1[i].reshape(1,padding_size,360),X_2[i].reshape(1,padding_size,360),X_3[i].reshape(1,padding_size,360),X_4[i].reshape(1,padding_size,360),X_elem[i][0],X_elem[i][1],X_elem[i][2],X_elem[i][3],modelCHG)
 
-        X_1_ms = ms.Tensor(X_1[i].reshape(1,padding_size,360),ms.float32)
-        X_2_ms = ms.Tensor(X_2[i].reshape(1,padding_size,360),ms.float32)
-        X_3_ms = ms.Tensor(X_3[i].reshape(1,padding_size,360),ms.float32)
-        X_4_ms = ms.Tensor(X_4[i].reshape(1,padding_size,360),ms.float32)
-        predCHG1,predCHG2,predCHG3,predCHG4=coef_predict(X_1_ms,X_2_ms,X_3_ms,X_4_ms,X_elem[i][0],X_elem[i][1],X_elem[i][2],X_elem[i][3],modelCHG)
+        padCHG1 = np.pad(predCHG1.T, pad_width=((0, 0), (0, padding_size - predCHG1.T.shape[1]), (0, 0)), mode='constant', constant_values=(0, 0))
+        padCHG2 = np.pad(predCHG2.T, pad_width=((0, 0), (0, padding_size - predCHG2.T.shape[1]), (0, 0)), mode='constant', constant_values=(0, 0))
+        padCHG3 = np.pad(predCHG3.T, pad_width=((0, 0), (0, padding_size - predCHG3.T.shape[1]), (0, 0)), mode='constant', constant_values=(0, 0))
+        padCHG4 = np.pad(predCHG4.T, pad_width=((0, 0), (0, padding_size - predCHG4.T.shape[1]), (0, 0)), mode='constant', constant_values=(0, 0))
 
-        padCHG1 = ops.pad(predCHG1,[0,padding_size-predCHG1.shape[1],0,0],mode='constant', value=0.0)
-        padCHG2 = ops.pad(predCHG2,[0,padding_size-predCHG2.shape[1],0,0],mode='constant', value=0.0)
-        padCHG3 = ops.pad(predCHG3,[0,padding_size-predCHG3.shape[1],0,0],mode='constant', value=0.0)
-        padCHG4 = ops.pad(predCHG4,[0,padding_size-predCHG4.shape[1],0,0],mode='constant', value=0.0)
-
-        X_C.append(ops.cat((X_1_ms,padCHG1),axis=-1))
-        X_H.append(ops.cat((X_2_ms,padCHG2),axis=-1))
-        X_N.append(ops.cat((X_3_ms,padCHG3),axis=-1))
-        X_O.append(ops.cat((X_4_ms,padCHG4),axis=-1))
-    X_C=ops.cat(X_C,axis=0)
-    X_H=ops.cat(X_H,axis=0)
-    X_N=ops.cat(X_N,axis=0)
-    X_O=ops.cat(X_O,axis=0)
+        X_C.append(np.concatenate((X_1[i].reshape(1,padding_size,360),padCHG1.T),axis=-1))
+        X_H.append(np.concatenate((X_2[i].reshape(1,padding_size,360),padCHG2.T),axis=-1))
+        X_N.append(np.concatenate((X_3[i].reshape(1,padding_size,360),padCHG3.T),axis=-1))
+        X_O.append(np.concatenate((X_4[i].reshape(1,padding_size,360),padCHG4.T),axis=-1))
+    X_C=np.vstack(X_C)
+    X_H=np.vstack(X_H)
+    X_N=np.vstack(X_N)
+    X_O=np.vstack(X_O) 
     return X_C,X_H,X_N,X_O
 
 

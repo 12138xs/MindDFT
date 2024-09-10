@@ -9,6 +9,8 @@ import matplotlib
 import mindspore as ms
 import mindspore.ops as ops
 import mindspore.nn as nn
+from mindspore import Tensor
+from mindspore.train import Model, CheckpointConfig, ModelCheckpoint, LossMonitor
 import pymatgen
 from pymatgen import io
 from pymatgen.io.vasp.outputs import Poscar
@@ -22,8 +24,6 @@ import itertools
 import glob
 import shutil
 
-from MLDFT.src.FPtf import fp_atom,fp_chg_norm
-
 class Input_parameters:
     test_chg=test_chg
     write_chg=write_chg
@@ -31,21 +31,21 @@ class Input_parameters:
     
 inp_args=Input_parameters()
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.path.join(ROOT_DIR, '../Trained_models/weights_CHG.hdf5')
+CONFIG_PATH = os.path.join(ROOT_DIR, '../Trained_models/weights_CHG.ckpt')
 
 # define model
 class model_atomC_chg(nn.Cell):
     def __init__(self):
         super(model_atomC_chg, self).__init__()
-        self.dense1 = nn.Dense(360, 200,activation='tanh')
-        self.dense2 = nn.Dense(200, 200,activation='tanh')
-        self.dense3 = nn.Dense(200, 340)
+        self.denseSeq = nn.SequentialCell(
+            nn.Dense(360, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 340)
+        )
     def construct(self,input1):
-        model_out_allC = self.dense1(input1)
-        model_out_allC = self.dense2(model_out_allC)
-        model_out_allC = self.dense2(model_out_allC)
-        model_out_allC = self.dense2(model_out_allC)
-        model_out_allC = self.dense3(model_out_allC)
+        model_out_allC = self.denseSeq(input1)
         model_out_expC, model_out_coefsC = ops.split(model_out_allC, [93, 247], axis=1)
         model_out_expC = ops.abs(model_out_expC)
         model_out_allC = ops.cat((model_out_expC, model_out_coefsC), axis=-1)
@@ -54,15 +54,15 @@ class model_atomC_chg(nn.Cell):
 class model_atomH_chg(nn.Cell):
     def __init__(self):
         super(model_atomH_chg, self).__init__()
-        self.dense1 = nn.Dense(360, 200,activation='tanh')
-        self.dense2 = nn.Dense(200, 200,activation='tanh')
-        self.dense4 = nn.Dense(200, 208)
+        self.denseSeq = nn.SequentialCell(
+            nn.Dense(360, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 208)
+        )
     def construct(self,input2):
-        model_out_allH = self.dense1(input2)
-        model_out_allH = self.dense2(model_out_allH)
-        model_out_allH = self.dense2(model_out_allH)
-        model_out_allH = self.dense2(model_out_allH)
-        model_out_allH = self.dense4(model_out_allH)
+        model_out_allH = self.denseSeq(input2)
         model_out_expH, model_out_coefsH = ops.split(model_out_allH, [58, 150], axis=1)
         model_out_expH = ops.abs(model_out_expH)
         model_out_expH = ops.cat((model_out_expH, model_out_coefsH), axis=-1)
@@ -71,15 +71,15 @@ class model_atomH_chg(nn.Cell):
 class model_atomN_chg(nn.Cell):
     def __init__(self):
         super(model_atomN_chg, self).__init__()
-        self.dense1 = nn.Dense(360, 200,activation='tanh')
-        self.dense2 = nn.Dense(200, 200,activation='tanh')
-        self.dense3 = nn.Dense(200, 340)
+        self.denseSeq = nn.SequentialCell(
+            nn.Dense(360, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 340)
+        )
     def construct(self,input3):
-        model_out_allN = self.dense1(input3)
-        model_out_allN = self.dense2(model_out_allN)
-        model_out_allN = self.dense2(model_out_allN)
-        model_out_allN = self.dense2(model_out_allN)
-        model_out_allN = self.dense3(model_out_allN)
+        model_out_allN = self.denseSeq(input3)
         model_out_expN, model_out_coefsN = ops.split(model_out_allN, [93, 247], axis=1)
         model_out_expN = ops.abs(model_out_expN)
         model_out_allN = ops.cat((model_out_expN, model_out_coefsN), axis=-1)
@@ -88,15 +88,15 @@ class model_atomN_chg(nn.Cell):
 class model_atomO_chg(nn.Cell):
     def __init__(self):
         super(model_atomO_chg, self).__init__()
-        self.dense1 = nn.Dense(360, 200,activation='tanh')
-        self.dense2 = nn.Dense(200, 200,activation='tanh')
-        self.dense3 = nn.Dense(200, 340)
+        self.denseSeq = nn.SequentialCell(
+            nn.Dense(360, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 200,activation='tanh'),
+            nn.Dense(200, 340)
+        )
     def construct(self,input4):
-        model_out_allO = self.dense1(input4)
-        model_out_allO = self.dense2(model_out_allO)
-        model_out_allO = self.dense2(model_out_allO)
-        model_out_allO = self.dense2(model_out_allO)
-        model_out_allO = self.dense3(model_out_allO)
+        model_out_allO = self.denseSeq(input4)
         model_out_expO, model_out_coefsO = ops.split(model_out_allO, [93, 247], axis=-1)
         model_out_expO = ops.abs(model_out_expO)
         model_out_expO = ops.cat((model_out_expO, model_out_coefsO), axis=-1)
@@ -118,12 +118,16 @@ class modelCHG(nn.Cell):
         model_out_c4 = self.time_distributed_4(input4)
         return model_out_c1,model_out_c2,model_out_c3,model_out_c4
 
-def init_chgmod(padding_size):
-    model_CHG = modelCHG(padding_size)
-    return model_CHG
+class init_chgmod():
+    def __init__(self,padding_size):
+        self._network = modelCHG(padding_size)
+        self._network.set_train(False)
+    def predict(self, *inputs):
+        return self._network(*inputs)
 
 def model_weights(modelCHG):
-    #modelCHG.load_weights(CONFIG_PATH)
+    param_dict = ms.load_checkpoint(CONFIG_PATH)
+    ms.load_param_into_net(modelCHG._network, param_dict)
     return modelCHG
 
 
@@ -670,7 +674,7 @@ def chg_dat_prep(at_elem, dataset1, dataset2, i1, i2, i3, i4, num_chg_bins):
     dataset_at2 = np.vstack(dataset_at2)
     dataset_at3 = np.vstack(dataset_at3)
     dataset_at4 = np.vstack(dataset_at4)
-
+    global padding_size
     X_tot_at1 = np.pad(dataset_at1.T, pad_width=((0, 0), (0, padding_size - dataset_at1.T.shape[1])), mode='constant',constant_values=(0, 0))
     X_tot_at2 = np.pad(dataset_at2.T, pad_width=((0, 0), (0, padding_size - dataset_at2.T.shape[1])), mode='constant',constant_values=(0, 0))
     X_tot_at3 = np.pad(dataset_at3.T, pad_width=((0, 0), (0, padding_size - dataset_at3.T.shape[1])), mode='constant',constant_values=(0, 0))
@@ -709,24 +713,32 @@ def H_coef_s(Coef_at2):
         Coef_at2)
     return exps_1s, exps_2s, exps_3s, exps_4s, coefs_1s, coefs_2s, coefs_3s, coefs_4s
 
-def coef_predict(X_3D1, X_3D2, X_3D3, X_3D4, i1, i2, i3, i4, modelCHG):
-    modelCHGt = model_weights(modelCHG)
-    Coef_at1, Coef_at2, Coef_at3, Coef_at4 = modelCHGt(X_3D1, X_3D2, X_3D3, X_3D4)
-    Coef_at1 = Coef_at1[:, 0:i1, :]
-    Coef_at2 = Coef_at2[:, 0:i2, :]
-    if i3 != 0:
-        Coef_at3 = Coef_at3[:, 0:i3, :]
+def coef_predict(X_3D1,X_3D2,X_3D3,X_3D4,i1,i2,i3,i4,modelCHG):
+    modelCHGt=model_weights(modelCHG)
+    modelInput = [X_3D1, X_3D2, X_3D3, X_3D4]
+    modelInput = [Tensor(inp, dtype=ms.float32) for inp in modelInput]
+    Coef_at1, Coef_at2, Coef_at3, Coef_at4 = modelCHGt.predict(*modelInput)
+    Coef_at1, Coef_at2, Coef_at3, Coef_at4 = Coef_at1.asnumpy(), Coef_at2.asnumpy(), Coef_at3.asnumpy(), Coef_at4.asnumpy()
+    Coef_at1=Coef_at1[:,0:i1,:]
+    Coef_at2=Coef_at2[:,0:i2,:]
+    if i3!=0:
+        Coef_at3=Coef_at3[:,0:i3,:]
     else:
-        Coef_at3 = ms.Tensor(np.zeros((1,1,340)),ms.float32)
-    if i4 != 0:
-        Coef_at4 = Coef_at4[:, 0:i4, :]
+        Coef_at3=[0]*340
+        Coef_at3=np.reshape(Coef_at3,(1,1,340))
+    if i4!=0:
+        Coef_at4=Coef_at4[:,0:i4,:]
     else:
-        Coef_at4 = ms.Tensor(np.zeros((1,1,340)),ms.float32)
-    return Coef_at1, Coef_at2, Coef_at3, Coef_at4
+        Coef_at4=[0]*340
+        Coef_at4=np.reshape(Coef_at4,(1,1,340))
+    return Coef_at1,Coef_at2,Coef_at3,Coef_at4
 
 def chg_predict(X_3D1, X_3D2, X_3D3, X_3D4, i1, i2, i3, i4, sites_elem, modelCHG, at_elem):
     modelCHGt = model_weights(modelCHG)
-    Coef_at1, Coef_at2, Coef_at3, Coef_at4 = modelCHGt.predict([X_3D1, X_3D2, X_3D3, X_3D4], batch_size=1)
+    modelInput = [X_3D1, X_3D2, X_3D3, X_3D4]
+    modelInput = [Tensor(inp, dtype=ms.float32) for inp in modelInput]
+    Coef_at1, Coef_at2, Coef_at3, Coef_at4 = modelCHGt.predict(*modelInput)
+    Coef_at1, Coef_at2, Coef_at3, Coef_at4 = Coef_at1.asnumpy(), Coef_at2.asnumpy(), Coef_at3.asnumpy(), Coef_at4.asnumpy()
     Coef_at1 = Coef_at1[:, 0:i1, :]
     Coef_at2 = Coef_at2[:, 0:i2, :]
     if i3 != 0:
