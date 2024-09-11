@@ -10,19 +10,12 @@ import mindspore as ms
 import mindspore.ops as ops
 import mindspore.nn as nn
 from mindspore import Tensor
-from mindspore.train import Model, CheckpointConfig, ModelCheckpoint, LossMonitor
 import pymatgen
-from pymatgen import io
-from pymatgen.io.vasp.outputs import Poscar
 from pymatgen.io.vasp.outputs import Chgcar
 import random
-from random import sample
-import json
 from operator import itemgetter
-import h5py
 import itertools
-import glob
-import shutil
+
 
 class Input_parameters:
     test_chg=test_chg

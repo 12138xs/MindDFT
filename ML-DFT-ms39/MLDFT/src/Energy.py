@@ -1,31 +1,15 @@
 import warnings
 warnings.filterwarnings('ignore')
 import os
-import sys
-
-import argparse
 import numpy as np
-import time
-
 from inp_params import train_e,new_weights_e,test_e
-import matplotlib
 import mindspore as ms
 import mindspore.ops as ops
 import mindspore.nn as nn
-from mindspore.train import Model, save_checkpoint
+from mindspore.train import save_checkpoint
 from mindspore.dataset import GeneratorDataset
-
-import pymatgen
-from pymatgen import io
-from pymatgen.io.vasp.outputs import Poscar
-from pymatgen.io.vasp.outputs import Chgcar
-from random import Random
 import os
-import gc
-from operator import itemgetter
-import h5py
-import glob
-import shutil
+
 
 class Input_parameters:
     train_e=train_e    

@@ -2,14 +2,10 @@ import warnings
 warnings.filterwarnings('ignore')
 import os
 import numpy as np
-import sys
-import math
 from inp_params import train_dos,new_weights_dos
-import argparse
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import time
 
 import mindspore as ms
 import mindspore.ops as ops
@@ -18,18 +14,6 @@ from mindspore.train import save_checkpoint
 from mindspore import Tensor
 from mindspore.dataset import GeneratorDataset
 
-import pymatgen
-from pymatgen import io
-from pymatgen.io.vasp.outputs import Poscar
-
-import random
-import gc
-from random import sample
-import json
-from operator import itemgetter
-import h5py
-import glob
-import shutil
 
 class Input_parameters:
     train_dos=train_dos

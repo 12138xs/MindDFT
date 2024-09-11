@@ -1,5 +1,5 @@
 import warnings
-#warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore')
 import numpy as np
 import math
 import os
@@ -8,26 +8,10 @@ sys.path.append(os.getcwd())
 from inp_params import batch_size_fp, num_gamma, cut_off_rad, widest_gaussian, narrowest_gaussian
 from operator import itemgetter
 from joblib import dump, load
-from sklearn import preprocessing
-from sklearn.preprocessing import MaxAbsScaler
-
-import time
 
 import mindspore as ms
 import mindspore.ops as ops
-import mindspore.nn as nn
-
-import pymatgen
-from pymatgen import io
-from pymatgen.io.vasp.outputs import Poscar
-from pymatgen.io.vasp.outputs import Chgcar
-
-from random import Random
-
 import itertools
-import h5py
-import glob
-import shutil
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH1 = os.path.join(ROOT_DIR, '../Trained_models/Scale_model_C.joblib')
@@ -90,7 +74,7 @@ def fp_atom(poscar_data,supercell,elems_list):
     def quad(cart_grid_ms):
         quad_list=[]
         for num_e in range(len(unique_cart_list)):
-            cart_atoms_ms = ms.Tensor(unique_cart_list[num_e],ms.float64)
+            cart_atoms_ms = ms.Tensor(unique_cart_list[num_e],ms.float32)
             rad_diff = cart_grid_ms - cart_atoms_ms[:, None]
             rad = ops.sqrt(rad_diff[:, :, 0] ** 2 + rad_diff[:, :, 1] ** 2 + rad_diff[:, :, 2] ** 2)
             rad_inv=ms.Tensor(1.0)/ops.sqrt(rad_diff[:, :, 0] ** 2 + rad_diff[:, :, 1] ** 2 + rad_diff[:, :, 2] ** 2)
@@ -106,8 +90,8 @@ def fp_atom(poscar_data,supercell,elems_list):
 
             for nth_fp, gamma in enumerate(inp_args.list_gamma):
                 norm = np.power(gamma / np.pi, 1.5)
-                norm = ms.Tensor(norm,ms.float64)
-                gamma = ms.Tensor(gamma,ms.float64)
+                norm = ms.Tensor(norm,ms.float32)
+                gamma = ms.Tensor(gamma,ms.float32)
                 exp_term.append(norm * ops.exp(-gamma * rad ** 2))
                 tens1=norm * ops.exp(-gamma * rad ** 2)
                 tens2=rad**2
@@ -163,16 +147,6 @@ def fp_atom(poscar_data,supercell,elems_list):
 
         return all_elem_quad
 #
-    # def modelff():
-    #     inp_grid = Input((3,))
-    #     out=Lambda(quad)(inp_grid)
-    #     modelff = Model(inputs=inp_grid, outputs=out)
-    #     return modelff
-    #K.clear_session()
-    #modelff = modelff()
-    #num_atoms=cart_grid_K.shape[0]
-    #Y = modelff.predict(cart_grid_K, batch_size=inp_args.batch_size_fp,verbose=0)
-
     cart_grid_K = ms.Tensor.from_numpy(cart_grid_K)
     Y = quad(cart_grid_K)
     Y = Y.asnumpy()

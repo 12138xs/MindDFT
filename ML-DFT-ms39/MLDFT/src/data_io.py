@@ -1,28 +1,12 @@
 import warnings
 warnings.filterwarnings('ignore')
 import numpy as np
-from numpy import cumsum
-
-import argparse
 import os
 import sys
 sys.path.append(os.getcwd())
 
-import mindspore as ms
-import mindspore.ops as ops
-import mindspore.nn as nn
-
-import pymatgen
-from pymatgen import io
 from pymatgen.io.vasp.outputs import Poscar
 
-from random import Random
-
-from operator import itemgetter
-import h5py
-import pathlib
-import glob
-import shutil
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 # from MLDFT.src.FP import fp_atom
