@@ -263,25 +263,33 @@ def gau2grid_density_kdtree(x, y, z, data, ml_y, rs, ldepb=False):
         return target_density, ml_density
 
 
+# find min and max of coordinates
+# def find_min_max(coords):
+#     xmin, xmax = coords[0, 0], coords[0, 0]
+#     ymin, ymax = coords[0, 1], coords[0, 1]
+#     zmin, zmax = coords[0, 2], coords[0, 2]
+#     for coord in coords:
+#         if coord[0] < xmin:
+#             xmin = coord[0]
+#         if coord[0] > xmax:
+#             xmax = coord[0]
+#         if coord[1] < ymin:
+#             ymin = coord[1]
+#         if coord[1] > ymax:
+#             ymax = coord[1]
+#         if coord[2] < zmin:
+#             zmin = coord[2]
+#         if coord[2] > zmax:
+#             zmax = coord[2]
+#     return xmin, xmax, ymin, ymax, zmin, zmax
+
 def find_min_max(coords):
-    xmin, xmax = coords[0, 0], coords[0, 0]
-    ymin, ymax = coords[0, 1], coords[0, 1]
-    zmin, zmax = coords[0, 2], coords[0, 2]
-
-    for coord in coords:
-        if coord[0] < xmin:
-            xmin = coord[0]
-        if coord[0] > xmax:
-            xmax = coord[0]
-        if coord[1] < ymin:
-            ymin = coord[1]
-        if coord[1] > ymax:
-            ymax = coord[1]
-        if coord[2] < zmin:
-            zmin = coord[2]
-        if coord[2] > zmax:
-            zmax = coord[2]
-
+    xmin = coords[:, 0].min()
+    xmax = coords[:, 0].max()
+    ymin = coords[:, 1].min()
+    ymax = coords[:, 1].max()
+    zmin = coords[:, 2].min()
+    zmax = coords[:, 2].max()
     return xmin, xmax, ymin, ymax, zmin, zmax
 
 
