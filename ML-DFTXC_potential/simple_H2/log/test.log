@@ -1,0 +1,119 @@
+nohup: ignoring input
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:24.352.975 [mindspore/run_check/_check_version.py:102] MindSpore version 2.2.14 and cuda version 11.8.89 does not match, CUDA version [['10.1', '11.1', '11.6']] are supported by MindSpore officially. Please refer to the installation guide for version matching information: https://www.mindspore.cn/install.
+Verbose 	 True 	 <class 'bool'>
+CheckPointPath 	 ./d0700 	 <class 'str'>
+EnableCuda 	 True 	 <class 'bool'>
+Structure 	 ./H2_d0700.str 	 <class 'str'>
+OrbitalBasis 	 aug-cc-pVQZ 	 <class 'str'>
+ReferencePotential 	 ['hfx'] 	 <class 'list'>
+Model 	 cnn_gga_1 	 <class 'str'>
+ModelPath 	 ./model_chk/H2_0.9_0_CNN_GGA_1.restart1000.ckpt 	 <class 'str'>
+MeshLevel 	 3 	 <class 'int'>
+CubeLength 	 0.9 	 <class 'float'>
+CubePoint 	 9 	 <class 'int'>
+Symmetric 	 xz+ 	 <class 'str'>
+InitDensityMatrix 	 rks 	 <class 'str'>
+xcFunctional 	 b3lypg 	 <class 'str'>
+ConvergenceCriterion 	 1e-06 	 <class 'float'>
+MaxIteration 	 99 	 <class 'int'>
+ZeroForceConstrain 	 True 	 <class 'bool'>
+ZeroTorqueConstrain 	 False 	 <class 'bool'>
+Check point files saved to ./d0700
+CHK folder already exists. Old files will be overwritten.
+Structure info:
+ H	+0.00000000e+00	+0.00000000e+00	+6.61404144e-01  Bohr
+ H	+0.00000000e+00	+0.00000000e+00	-6.61404144e-01  Bohr
+charge = 0
+spin = 0
+NNKS::_generate_mol() done.
+[31mUse HFX reference potential[0m
+converged SCF energy = -1.13263362433774
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.046 [mindspore/train/serialization.py:1378] For 'load_param_into_net', 12 parameters in the 'net' are not loaded, because they are not in the 'parameter_dict', please check whether the network structure is consistent when training and loading checkpoint.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.254 [mindspore/train/serialization.py:1383] model.conv1.weight is not loaded.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.292 [mindspore/train/serialization.py:1383] model.conv1.bias is not loaded.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.320 [mindspore/train/serialization.py:1383] model.conv2.weight is not loaded.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.345 [mindspore/train/serialization.py:1383] model.conv2.bias is not loaded.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.370 [mindspore/train/serialization.py:1383] model.fc1.weight is not loaded.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.395 [mindspore/train/serialization.py:1383] model.fc1.bias is not loaded.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.418 [mindspore/train/serialization.py:1383] model.fc2.weight is not loaded.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.441 [mindspore/train/serialization.py:1383] model.fc2.bias is not loaded.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.465 [mindspore/train/serialization.py:1383] model.fc3.weight is not loaded.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.487 [mindspore/train/serialization.py:1383] model.fc3.bias is not loaded.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.510 [mindspore/train/serialization.py:1383] model.fc4.weight is not loaded.
+[WARNING] ME(3519327:140093444912960,MainProcess):2024-11-15-01:28:26.186.533 [mindspore/train/serialization.py:1383] model.fc4.bias is not loaded.
+[31mSave dm to ./d0700/dm_hfx.npy[0m
+NNKS::_get_fixed_matrix() done.
+NNKS::_load_nn_model() done.
+NNKS::_get_model_info() done.
+Transform grids onto half xz-plane
+Grids::_extend_coords() done.
+Grids::__init__() done.
+NNKS::__init__() done.
+Prepare to perform post DFT SCF calculation.
+[35mUse RKS with xc ``b3lypg" density as init[0m
+converged SCF energy = -1.17926185615524
+Initialize done.
+
+================
+SCF calculation
+================
+Evaluate xc potential on grids. Block size: 200 Total: 19008 Number of blocks: 95 Residual: 8
+
+100%|██████████| 19008/19008 [00:16<00:00, 1182.05it/s]
+Construct vxc based on ZF constrain.
+Iter   0	max abs diff in dm: 1.17034863e-02	 sum abs diff in dm: 2.98621284e-01	# elec: 2.00000000e+00
+Evaluate xc potential on grids. Block size: 200 Total: 19008 Number of blocks: 95 Residual: 8
+
+100%|██████████| 19008/19008 [00:16<00:00, 1157.07it/s]
+Construct vxc based on ZF constrain.
+Iter   1	max abs diff in dm: 2.16511367e-05	 sum abs diff in dm: 8.52495723e-04	# elec: 2.00000000e+00
+Evaluate xc potential on grids. Block size: 200 Total: 19008 Number of blocks: 95 Residual: 8
+
+100%|██████████| 19008/19008 [00:16<00:00, 1141.76it/s]
+Construct vxc based on ZF constrain.
+Iter   2	max abs diff in dm: 4.57173926e-08	 sum abs diff in dm: 3.48473814e-06	# elec: 2.00000000e+00
+SCF converged.
+converged SCF energy = -1.17926185615524
+converged SCF energy = -1.13263362433773
+<class 'pyscf.cc.ccsd.CCSD'> does not have attributes  converged
+E(CCSD) = -1.17259214348399  E_corr = -0.0399585191462597
+
+---- Force ----
+Evaluate xc potential on grids. Block size: 200 Total: 19008 Number of blocks: 95 Residual: 8
+
+100%|██████████| 19008/19008 [00:16<00:00, 1167.31it/s]
+Construct vxc based on ZF constrain.
+Iter  99	max abs diff in dm: 1.93891060e-09	 sum abs diff in dm: 1.09865807e-07	# elec: 2.00000000e+00
+HF_elec (2, 3)
+[[ 6.39562910e-16 -6.48094193e-17  5.39920638e-01]
+ [ 2.44305267e-16 -1.24764229e-16 -5.39920638e-01]]
+HF_nuc (2, 3)
+[[ 0.          0.         -0.57148678]
+ [ 0.          0.          0.57148678]]
+HF (2, 3)
+[[ 6.39562910e-16 -6.48094193e-17 -3.15661390e-02]
+ [ 2.44305267e-16 -1.24764229e-16  3.15661390e-02]]
+Pulay_th (2, 3)
+[[-3.87748584e-15  1.36330698e-15  5.91403890e-01]
+ [ 2.99361766e-15 -1.17373333e-15 -5.91403890e-01]]
+Pulay_t0 (2, 3)
+[[ 1.69089555e-15 -7.23361655e-16 -3.54821611e-01]
+ [-1.85823637e-15  7.70950057e-16  3.54821611e-01]]
+Pulay_tbg (2, 3)
+[[-9.39014813e-17  2.83951263e-17  2.82709524e-02]
+ [ 2.51192985e-16 -1.05946607e-16 -2.82709524e-02]]
+Pulay_tf (2, 3)
+[[-2.28049177e-15  6.68340451e-16  2.64853231e-01]
+ [ 1.38657428e-15 -5.08729883e-16 -2.64853231e-01]]
+Pulay_ts (2, 3)
+[[ 1.57318352e-15 -6.23742388e-16 -2.61865136e-01]
+ [-1.57318352e-15  6.23742388e-16  2.61865136e-01]]
+Pulay (2, 3)
+[[-7.07308253e-16  4.45980623e-17  2.98809519e-03]
+ [-1.86609240e-16  1.15012506e-16 -2.98809519e-03]]
+Force on atoms
+-6.774534331779e-17 -2.021135695635e-17 -2.857804378457e-02
++5.769602758947e-17 -9.751722781467e-18 +2.857804378457e-02
+
+---- I ----
+rks, nn vs ccsd: 6.036629098763e-05	6.182746672415e-05
