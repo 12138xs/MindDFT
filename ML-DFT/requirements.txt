@@ -1,0 +1,7 @@
+joblib==1.4.2
+pandas==2.2.2
+scipy==1.13.1
+matplotlib
+scikit-learn==1.5.2
+pymatgen==2024.8.9
+mindspore==2.2.14
