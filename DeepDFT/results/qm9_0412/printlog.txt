@@ -1,5 +1,0 @@
-2024-05-12 08:27:11,050 [INFO ]  loading data ./data/qm9/qm9vasp_test.txt
-2024-05-12 08:27:14,919 [DEBUG]  Filling rotating data pool of size 20
-2024-05-12 08:27:14,946 [INFO ]  Preloading validation batch
-2024-05-12 08:27:16,348 [DEBUG]  model has 173 parameters
-2024-05-12 08:27:16,628 [INFO ]  start training
