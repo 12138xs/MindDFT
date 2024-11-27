@@ -6,12 +6,13 @@
 
 * **DeepDFT** 【[源码](https://github.com/peterbjorgensen/DeepDFT) | [文章](https://www.nature.com/articles/s41524-022-00863-y)】
   * 模型简介：该模型基于图上的等变消息传递，并使用插入到图中的特殊探测节点，计算其密度。与使用GFN-xTB半经验电子结构方法计算的特征的OrbNet-Equi模型46相比，该方法纯粹是数据驱动的，因为预测所需的唯一输入是原子序数和原子的坐标（包括周期性结构的晶胞参数）
-  * **训练**：`master`分支（存在loss出现nan问题）
-  * **推理**：`evoluate-model`分支
+  * **网络结构**：PaiNN网络作为backbone
+  * **训练模块**：`train.py`
+  * **推理模块**：`evaluate_model.py`, `predict_with_model.py`
   
 * **ML-DFT** 【[源码](https://github.com/Ramprasad-Group/ML-DFT/tree/main) | [文章](https://www.nature.com/articles/s41524-023-01115-3)】
   * 简介：ML-DFT 是各种深度学习模型的组合，可在 DFT 级别预测分子和聚合物电子结构的各种属性：电子密度、态密度和总势能（带有力和应力张量）。唯一需要的输入是 POSCAR 格式的结构信息。
-  * `master`分支，包含三个子模型：CHG, DOS, Energy
+  * **网络结构**：包含三个子模型：CHG, DOS, Energy
   * **训练模块**：DOS_retrain, Energy_retrain
   * **推理模块**：CHG_predict, DOS_predict, Energy_predict
 

@@ -14,10 +14,6 @@ This repository integrates several state-of-the-art machine learning models for 
 - **Model Description**:  
   DeepDFT is based on equivariant message passing on graphs. The model employs special probe nodes inserted into the graph to compute density. Unlike the OrbNet-Equi model, which uses features derived from semi-empirical electronic structure methods like GFN-xTB, DeepDFT is purely data-driven. The only required inputs are atomic numbers and atomic coordinates (including cell parameters for periodic structures).
   
-- **Branches**:  
-  - **Training**: Available on the `master` branch (note: there is an issue with loss values becoming NaN).  
-  - **Inference**: Available on the `evoluate-model` branch.
-
 ---
 
 ### **ML-DFT**  
@@ -26,16 +22,6 @@ This repository integrates several state-of-the-art machine learning models for 
 - **Model Description**:  
   ML-DFT is a combination of deep learning models designed to predict various properties of molecular and polymeric electronic structures at the DFT level. These properties include electronic density, density of states (DOS), and total potential energy (including forces and stress tensors). The only required input is structural information in the POSCAR format.
 
-- **Branches and Modules**:  
-  - The `master` branch includes three sub-models: **CHG**, **DOS**, and **Energy**.  
-  - **Training Modules**:  
-    - `DOS_retrain`  
-    - `Energy_retrain`  
-  - **Inference Modules**:  
-    - `CHG_predict`  
-    - `DOS_predict`  
-    - `Energy_predict`
-
 ---
 
 ### **Equivariant Electron Density**  
@@ -43,9 +29,6 @@ This repository integrates several state-of-the-art machine learning models for 
 
 - **Model Description**:  
   This model uses equivariant neural networks to predict accurate ab initio DNA electron densities. It is built on an equivariant Euclidean neural network framework to obtain accurate electron densities for arbitrary DNA structures that are too large for traditional quantum methods.
-
-- **Branch**:  
-  - `EEDM`
 
 ---
 
